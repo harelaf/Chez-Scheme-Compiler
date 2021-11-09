@@ -10,14 +10,6 @@ let rec gcd a b =
   | (a, 0) -> a
   | (a, b) -> gcd b (a mod b);;
 
-let rec pow num = 
-function
-  | 0 -> 1
-  | 1 -> num
-  | n -> 
-    let ans = pow num (n / 2) in
-    ans * ans * (if n mod 2 = 0 then 1 else num);;
-
 type scm_number =
   | ScmRational of (int * int)
   | ScmReal of float;;
@@ -34,7 +26,7 @@ type sexpr =
   | ScmPair of (sexpr * sexpr);;
 
 module type READER = sig
-    val nt_sexpr : sexpr PC.parser;;
+    val nt_sexpr : sexpr PC.parser
 end;; (* end of READER signature *)
 
 module Reader : READER = struct
@@ -49,7 +41,7 @@ and nt_end_of_line_or_file str =
   let nt2 = unitify nt_end_of_input in
   let nt1 = disj nt1 nt2 in
   nt1 str
-and nt_line_comment str =
+and nt_line_comment str = 
   let nt_end = disj (unitify (char '\n')) (unitify nt_end_of_input) in
   let nt1 = char ';' in
   let nt2 = diff nt_any nt_end in
@@ -72,82 +64,12 @@ and make_skipped_star (nt : 'a parser) =
   let nt1 = caten nt_skip_star (caten nt nt_skip_star) in
   let nt1 = pack nt1 (fun (_, (e, _)) -> e) in
   nt1
-and nt_int str = 
-  let plus_op = char '+' in
-  let minus_op = char '-' in
-  let digits = range '0' '9' in
-  let num = plus digits in
-  let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
-
-  let positives = caten plus_op num in
-  let positives = pack positives (fun (_, n) -> n) in
-
-  let negatives = caten minus_op num in
-  let negatives = pack negatives (fun (_, n) -> -n) in
-
-  let all_ints = disj num positives in
-  let all_ints = disj all_ints negatives in
-
-  all_ints str
-and nt_frac str =
-  let nt1 = char '/' in
-  let digits = range '0' '9' in
-  let num = plus digits in
-  let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
-
-  let fracs = caten nt_int (caten nt1 num) in
-  let fracs = pack fracs (fun (numerator, (_, denominator)) -> ScmRational(numerator, denominator)) in
-  fracs str
-and nt_integer_part str =
-  let digits = range '0' '9' in
-  let num = plus digits in
-  let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
-  num str
-and nt_mantissa str =
-  let digits = range '0' '9' in
-  let num = plus digits in
-  let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
-  num str
-and nt_exponent str =
-  let nt1 = char_ci 'e' in
-  let nt1 = unitify nt1 in
-  let nt2 = word "*10^" in
-  let nt2 = unitify nt2 in
-  let nt3 = word "*10**" in
-  let nt3 = unitify nt3 in
-  let nt4 = disj nt1 nt2 in
-  let nt4 = disj nt4 nt3 in
-
-  let exp = caten nt4 nt_int in
-  let exp = pack exp (fun (_, n) -> 
-                                    if (n >= 0) then (float_of_int (pow 10 n))
-                                                else (1. /. (float_of_int (pow 10 n)))) in
-  exp str
-and nt_float str =
-  let dot = char '.' in
-
-  let floatA_1 = caten nt_integer_part dot in
-  let floatA_1 = pack floatA_1 (fun (n, _) -> ScmReal (float_of_int n)) in
-  let floatA_2 = caten nt_integer_part (caten dot nt_exponent) in
-  let floatA_2 = pack floatA_2 (fun (n, (_, exp)) -> ScmReal ((float_of_int n) *. exp)) in
-  let floatA_3 = caten nt_integer_part (caten dot nt_mantissa) in
-  let floatA_3 = pack floatA_3 (fun (n, (_, man)) -> ScmReal (float_of_string (((string_of_int n) ^ ".") ^ (string_of_int man)))) in
-  let floatA_4 = caten nt_integer_part (caten dot (caten nt_mantissa nt_exponent)) in
-  let floatA_4 = pack floatA_4 (fun (n, (_, (man, exp))) -> ScmReal ((float_of_string (((string_of_int n) ^ ".") ^ (string_of_int man))) *.  exp)) in
-  let floatA = disj floatA_4 (disj floatA_3 (disj floatA_2 floatA_1)) in
-
-  let floatB_1 = caten dot nt_mantissa in
-  let floatB_1 = pack floatB_1 (fun (_, man) -> ScmReal (float_of_string ("." ^ (string_of_int man)))) in
-  let floatB_2 = caten dot (caten nt_mantissa nt_exponent) in
-  let floatB_2 = pack floatB_2 (fun (_, (man, exp)) -> ScmReal (((float_of_string ("." ^ (string_of_int man)))) *. exp)) in
-  let floatB = disj floatB_2 floatB_1 in
-
-  let floatC = caten nt_integer_part nt_exponent in
-  let floatC = pack floatC (fun (n, exp) -> ScmReal ((float_of_int n) *. exp)) in
-
-  let float = disj floatA (disj floatB floatC) in
-
-  float str
+and nt_int str = raise X_not_yet_implemented
+and nt_frac str = raise X_not_yet_implemented
+and nt_integer_part str = raise X_not_yet_implemented
+and nt_mantissa str = raise X_not_yet_implemented
+and nt_exponent str = raise X_not_yet_implemented
+and nt_float str = raise X_not_yet_implemented
 and nt_number str =
   let nt1 = nt_float in
   let nt2 = nt_frac in
@@ -156,7 +78,7 @@ and nt_number str =
   let nt1 = pack nt1 (fun r -> ScmNumber r) in
   let nt1 = not_followed_by nt1 nt_symbol_char in
   nt1 str
-and nt_boolean str = 
+and nt_boolean str =
   let nt1 = word_ci "#f" in
   let nt1 = pack nt1 (fun _ -> false) in
   let nt2 = word_ci "#t" in
@@ -175,7 +97,33 @@ and nt_char_named str =
                (make_named_char "space" ' ');
                (make_named_char "tab" '\t')] in
   nt1 str
-and nt_char_hex str = raise X_not_yet_implemented
+and make_nt_hex a f =
+      let nt1 = word_ci "0x" in
+      let nt2 = range '0' '9' in
+      let nt2 = pack nt2
+                  (let delta = int_of_char '0' in
+                   fun ch -> (int_of_char ch) - delta) in
+
+      let nt3 = range a f in
+      let nt3 = pack nt3
+                  (let delta = int_of_char 'a' in
+                   fun ch -> (int_of_char ch) - delta) in
+
+      let nt2 = disj nt2 nt3 in
+      let nt2 = plus nt2 in
+      let nt2 = not_followed_by nt2 (range_ci 'a' 'f') in
+      let nt2 = pack nt2
+                  (fun digits ->
+                    List.fold_left
+                      (fun a b -> 16*a + b)
+                      0
+                      digits) in
+      let nt1 = caten nt1 nt2 in
+      let nt1 = pack nt1 (fun (_, n) -> n) in
+      nt1
+and nt_char_hex str = 
+  let nt1 = disj (make_nt_hex 'a' 'f') (make_nt_hex 'A' 'F')
+  nt1 str
 and nt_char str = raise X_not_yet_implemented
 and nt_symbol_char str = raise X_not_yet_implemented
 and nt_symbol str =
