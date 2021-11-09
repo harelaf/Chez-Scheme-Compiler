@@ -17,5 +17,5 @@ do
 			echo -n $test_expression
 		fi
 	fi
-	echo 
+	echo
 done

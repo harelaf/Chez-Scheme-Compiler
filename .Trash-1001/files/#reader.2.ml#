@@ -1,31 +1,3 @@
-(* reader.ml
- * A skeleton for the reader for the 2021-2022 course on compiler-construction
- *)
-
-#use "pc.ml";;
-
-let rec gcd a b =
-  match (a, b) with
-  | (0, b) -> b
-  | (a, 0) -> a
-  | (a, b) -> gcd b (a mod b);;
-
-type scm_number =
-  | ScmRational of (int * int)
-  | ScmReal of float;;
-
-type sexpr =
-  | ScmVoid
-  | ScmNil
-  | ScmBoolean of bool
-  | ScmChar of char
-  | ScmString of string
-  | ScmSymbol of string
-  | ScmNumber of scm_number
-  | ScmVector of (sexpr list)
-  | ScmPair of (sexpr * sexpr);;
-
-module type READER = sig
     val nt_sexpr : sexpr PC.parser
 end;; (* end of READER signature *)
 
@@ -41,14 +13,7 @@ and nt_end_of_line_or_file str =
   let nt2 = unitify nt_end_of_input in
   let nt1 = disj nt1 nt2 in
   nt1 str
-and nt_line_comment str = 
-  let nt_end = disj (unitify (char '\n')) (unitify nt_end_of_input) in
-  let nt1 = char ';' in
-  let nt2 = diff nt_any nt_end in
-  let nt2 = star nt2 in
-  let nt1 = caten nt1 (caten nt2 nt_end) in
-  let nt1 = unitify nt1 in
-  nt1 str
+and nt_line_comment str = raise X_not_yet_implemented
 and nt_paired_comment str = raise X_not_yet_implemented
 and nt_sexpr_comment str = raise X_not_yet_implemented
 and nt_comment str =
@@ -78,15 +43,8 @@ and nt_number str =
   let nt1 = pack nt1 (fun r -> ScmNumber r) in
   let nt1 = not_followed_by nt1 nt_symbol_char in
   nt1 str
-and nt_boolean str =
-  let nt1 = word_ci "#f" in
-  let nt1 = pack nt1 (fun _ -> false) in
-  let nt2 = word_ci "#t" in
-  let nt2 = pack nt2 (fun _ -> true) in
-  let nt1 = disj nt1 nt2 in
-  let nt1 = not_followed_by nt1 nt_symbol in
-  let nt1 = pack nt1 (fun b -> ScmBoolean b) in
-  nt1 str
+and nt_boolean str = 
+  raise X_not_yet_implemented
 and nt_char_simple str = raise X_not_yet_implemented
 and make_named_char char_name ch = raise X_not_yet_implemented
 and nt_char_named str =
@@ -97,33 +55,7 @@ and nt_char_named str =
                (make_named_char "space" ' ');
                (make_named_char "tab" '\t')] in
   nt1 str
-and make_nt_hex a f =
-      let nt1 = word_ci "0x" in
-      let nt2 = range '0' '9' in
-      let nt2 = pack nt2
-                  (let delta = int_of_char '0' in
-                   fun ch -> (int_of_char ch) - delta) in
-
-      let nt3 = range a f in
-      let nt3 = pack nt3
-                  (let delta = int_of_char 'a' in
-                   fun ch -> (int_of_char ch) - delta) in
-
-      let nt2 = disj nt2 nt3 in
-      let nt2 = plus nt2 in
-      let nt2 = not_followed_by nt2 (range_ci 'a' 'f') in
-      let nt2 = pack nt2
-                  (fun digits ->
-                    List.fold_left
-                      (fun a b -> 16*a + b)
-                      0
-                      digits) in
-      let nt1 = caten nt1 nt2 in
-      let nt1 = pack nt1 (fun (_, n) -> n) in
-      nt1
-and nt_char_hex str = 
-  let nt1 = disj (make_nt_hex 'a' 'f') (make_nt_hex 'A' 'F')
-  nt1 str
+and nt_char_hex str = raise X_not_yet_implemented
 and nt_char str = raise X_not_yet_implemented
 and nt_symbol_char str = raise X_not_yet_implemented
 and nt_symbol str =
