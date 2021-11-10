@@ -187,11 +187,15 @@ and nt_boolean str =
   let nt2 = word_ci "#t" in
   let nt2 = pack nt2 (fun _ -> true) in
   let nt1 = disj nt1 nt2 in
-  let nt1 = not_followed_by nt1 nt_symbol in
+  (* let nt1 = not_followed_by nt1 nt_symbol in *)
   let nt1 = pack nt1 (fun b -> ScmBoolean b) in
   nt1 str
-and nt_char_simple str = raise X_not_yet_implemented
-and make_named_char char_name ch = raise X_not_yet_implemented
+and nt_char_simple str = 
+  let nt = range ' ' '\127'in
+  nt str
+and make_named_char char_name ch = 
+  let nt = pack (word_ci char_name) (fun _ -> ch) in
+  nt
 and nt_char_named str =
   let nt1 =
     disj_list [(make_named_char "newline" '\n');
@@ -201,8 +205,31 @@ and nt_char_named str =
                (make_named_char "tab" '\t')] in
   nt1 str
 and nt_char_hex str = raise X_not_yet_implemented
-and nt_char str = raise X_not_yet_implemented
-and nt_symbol_char str = raise X_not_yet_implemented
+and nt_char str = 
+  let prefix = word "#\\" in
+  let nt1 = disj nt_char_simple nt_char_named in
+  let nt = caten prefix nt1 in
+  let nt = pack nt (fun (_, ch) -> ScmChar ch) in
+  nt str
+and nt_symbol_char str = 
+  let nt1 = range '0' '9' in
+  let nt2 = range_ci 'a' 'z' in
+  let nt3 = char '!' in
+  let nt4 = char '$' in
+  let nt5 = char '^' in
+  let nt6 = char '*' in
+  let nt7 = char '-' in
+  let nt8 = char '_' in
+  let nt9 = char '=' in
+  let nt10 = char '+' in
+  let nt11 = char '<' in
+  let nt12 = char '>' in
+  let nt13 = char '?' in
+  let nt14 = char '/' in
+  let nt15 = char ':' in
+
+  let nt = disj_list [nt1; nt2; nt3; nt4; nt5; nt6; nt7; nt8; nt9; nt10; nt11; nt12; nt13; nt14; nt15] in
+  nt str
 and nt_symbol str =
   let nt1 = plus nt_symbol_char in
   let nt1 = pack nt1 list_to_string in
@@ -222,7 +249,27 @@ and nt_vector str =
   let nt1 = caten nt1 nt2 in
   let nt1 = pack nt1 (fun (_, sexpr) -> sexpr) in
   nt1 str
-and nt_list str = raise X_not_yet_implemented
+and nt_list str = 
+  let right_bracket = char '(' in
+  let left_bracket = char ')' in
+  let dot = char '.' in
+
+  let star_sxepr = star nt_sexpr in
+  let plus_sexpr = plus nt_sexpr in
+
+  let nt1 = caten right_bracket (caten star_sxepr left_bracket) in
+  let nt1 = pack nt1 (fun (_, (exprs, _)) -> List.fold_left 
+                                              (fun a b -> ScmPair (b, a))
+                                              ScmNil
+                                              exprs) in
+  let nt2 = caten right_bracket (caten plus_sexpr (caten dot (caten nt_sexpr left_bracket))) in
+  let nt2 = pack nt2 (fun (_, (exprs, (_, (expr, _)))) -> List.fold_left 
+                                                            (fun a b -> ScmPair (b, a))
+                                                            expr
+                                                            exprs) in
+
+  let nt = disj nt1 nt2 in
+  nt str
 and nt_quoted_forms str = raise X_not_yet_implemented
 and nt_sexpr str =
   let nt1 =

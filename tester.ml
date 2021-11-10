@@ -3,29 +3,35 @@
 
 open PC;;
 
-  (* let plus_op = char '+';;
-  let minus_op = char '-';;
-  let digits = range '0' '9';;
-  let num = plus digits;;
-  let num = pack num (fun (ds) -> int_of_string (list_to_string ds));;
 
-  let positives = caten plus_op num;;
-  let positives = pack positives (fun (_, n) -> n);;
+let unitify nt = pack nt (fun _ -> ());;
 
-  let negatives = caten minus_op num;;
-  let negatives = pack negatives (fun (_, n) -> -n);;
-
-  let all_ints = disj num positives;;
-  let all_ints = disj all_ints negatives;;
-
-  let nt1 = char '/';;
-  let digits = range '0' '9';;
-  let num1 = plus digits;;
-  let num1 = pack num1 (fun (ds) -> int_of_string (list_to_string ds));;
-
-  let fracs = caten all_ints (caten nt1 num1);;
-  let fracs = pack fracs (fun (numerator, (_, denominator)) -> ScmRational(numerator, denominator));; *)
-let nt_int str = 
+let rec nt_whitespace str =
+  const (fun ch -> ch <= ' ') str
+and nt_end_of_line_or_file str =
+  let nt1 = unitify (char '\n') in
+  let nt2 = unitify nt_end_of_input in
+  let nt1 = disj nt1 nt2 in
+  nt1 str
+and nt_line_comment str =
+  let nt_end = disj (unitify (char '\n')) (unitify nt_end_of_input) in
+  let nt1 = char ';' in
+  let nt2 = diff nt_any nt_end in
+  let nt2 = star nt2 in
+  let nt1 = caten nt1 (caten nt2 nt_end) in
+  let nt1 = unitify nt1 in
+  nt1 str
+and nt_comment str =
+  nt_line_comment str
+and nt_skip_star str =
+  let nt1 = disj (unitify nt_whitespace) nt_comment in
+  let nt1 = unitify (star nt1) in
+  nt1 str
+and make_skipped_star (nt : 'a parser) =
+  let nt1 = caten nt_skip_star (caten nt nt_skip_star) in
+  let nt1 = pack nt1 (fun (_, (e, _)) -> e) in
+  nt1
+and nt_int str = 
   let plus_op = char '+' in
   let minus_op = char '-' in
   let digits = range '0' '9' in
@@ -41,13 +47,17 @@ let nt_int str =
   let all_ints = disj num positives in
   let all_ints = disj all_ints negatives in
 
-  all_ints str;;
+  all_ints str
+and nt_frac str =
+  let nt1 = char '/' in
+  let digits = range '0' '9' in
+  let num = plus digits in
+  let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
 
-let unitify nt =
-    let nt1 = pack nt (fun _ -> ()) in
-    nt1;;
-
-let nt_integer_part str =
+  let fracs = caten nt_int (caten nt1 num) in
+  let fracs = pack fracs (fun (numerator, (_, denominator)) -> ScmRational(numerator, denominator)) in
+  fracs str
+and nt_integer_part str =
   let plus_op = char '+' in
   let minus_op = char '-' in
   let digits = range '0' '9' in
@@ -62,13 +72,13 @@ let nt_integer_part str =
   let all_ints = disj num_no_op positives in
   let all_ints = disj all_ints negatives in
 
-  all_ints str;;
-let nt_mantissa str =
+  all_ints str
+and nt_mantissa str =
   let digits = range '0' '9' in
   let num = plus digits in
   let num = pack num (fun digits -> float_of_string ("." ^ (list_to_string digits))) in
-  num str;;
-let nt_exponent str =
+  num str
+and nt_exponent str =
   let nt1 = char_ci 'e' in
   let nt1 = unitify nt1 in
   let nt2 = word "*10^" in
@@ -82,8 +92,8 @@ let nt_exponent str =
   let exp = pack exp (fun (_, n) -> 
                                     if (n >= 0) then (float_of_int (pow 10 n))
                                                 else (1. /. (float_of_int (pow 10 n)))) in
-  exp str;;
-let nt_float str =
+  exp str
+and nt_float str =
   let dot = char '.' in
   let plus_op = char '+' in
   let minus_op = char '-' in
@@ -121,4 +131,105 @@ let nt_float str =
 
   let float = disj floatA (disj floatB floatC) in
 
-  float str;;
+  float str
+and nt_number str =
+  let nt1 = nt_float in
+  let nt2 = nt_frac in
+  let nt3 = pack nt_int (fun n -> ScmRational(n, 1)) in
+  let nt1 = disj nt1 (disj nt2 nt3) in
+  let nt1 = pack nt1 (fun r -> ScmNumber r) in
+  let nt1 = not_followed_by nt1 nt_symbol_char in
+  nt1 str
+and nt_boolean str = 
+  let nt1 = word_ci "#f" in
+  let nt1 = pack nt1 (fun _ -> false) in
+  let nt2 = word_ci "#t" in
+  let nt2 = pack nt2 (fun _ -> true) in
+  let nt1 = disj nt1 nt2 in
+  (* let nt1 = not_followed_by nt1 nt_symbol in *)
+  let nt1 = pack nt1 (fun b -> ScmBoolean b) in
+  nt1 str
+and nt_char_simple str = 
+  let nt = range ' ' '\127'in
+  nt str
+and make_named_char char_name ch = 
+  let nt = pack (word_ci char_name) (fun _ -> ch) in
+  nt
+and nt_char_named str =
+  let nt1 =
+    disj_list [(make_named_char "newline" '\n');
+               (make_named_char "page" '\012');
+               (make_named_char "return" '\r');
+               (make_named_char "space" ' ');
+               (make_named_char "tab" '\t')] in
+  nt1 str
+and nt_char str = 
+  let prefix = word "#\\" in
+  let nt1 = disj nt_char_simple nt_char_named in
+  let nt = caten prefix nt1 in
+  let nt = pack nt (fun (_, ch) -> ScmChar ch) in
+  nt str
+and nt_symbol_char str = 
+  let nt1 = range '0' '9' in
+  let nt2 = range_ci 'a' 'z' in
+  let nt3 = char '!' in
+  let nt4 = char '$' in
+  let nt5 = char '^' in
+  let nt6 = char '*' in
+  let nt7 = char '-' in
+  let nt8 = char '_' in
+  let nt9 = char '=' in
+  let nt10 = char '+' in
+  let nt11 = char '<' in
+  let nt12 = char '>' in
+  let nt13 = char '?' in
+  let nt14 = char '/' in
+  let nt15 = char ':' in
+
+  let nt = disj_list [nt1; nt2; nt3; nt4; nt5; nt6; nt7; nt8; nt9; nt10; nt11; nt12; nt13; nt14; nt15] in
+  nt str
+and nt_symbol str =
+  let nt1 = plus nt_symbol_char in
+  let nt1 = pack nt1 list_to_string in
+  let nt1 = pack nt1 (fun name -> ScmSymbol name) in
+  let nt1 = diff nt1 nt_number in
+  nt1 str
+and nt_vector str =
+  let nt1 = word "#(" in
+  let nt2 = caten nt_skip_star (char ')') in
+  let nt2 = pack nt2 (fun _ -> ScmVector []) in
+  let nt3 = plus nt_sexpr in
+  let nt4 = char ')' in
+  let nt3 = caten nt3 nt4 in
+  let nt3 = pack nt3 (fun (sexprs, _) -> ScmVector sexprs) in
+  let nt2 = disj nt2 nt3 in
+  let nt1 = caten nt1 nt2 in
+  let nt1 = pack nt1 (fun (_, sexpr) -> sexpr) in
+  nt1 str
+and nt_list str = 
+  let right_bracket = char '(' in
+  let left_bracket = char ')' in
+  let dot = char '.' in
+
+  let star_sxepr = star nt_sexpr in
+  let plus_sexpr = plus nt_sexpr in
+
+  let nt1 = caten right_bracket (caten star_sxepr left_bracket) in
+  let nt1 = pack nt1 (fun (_, (exprs, _)) -> List.fold_left 
+                                              (fun a b -> ScmPair (b, a))
+                                              ScmNil
+                                              exprs) in
+  let nt2 = caten right_bracket (caten plus_sexpr (caten dot (caten nt_sexpr left_bracket))) in
+  let nt2 = pack nt2 (fun (_, (exprs, (_, (expr, _)))) -> List.fold_left 
+                                                            (fun a b -> ScmPair (b, a))
+                                                            expr
+                                                            exprs) in
+
+  let nt = disj nt1 nt2 in
+  nt str
+and nt_sexpr str =
+  let nt1 =
+    disj_list [nt_number; nt_boolean; nt_char; nt_symbol;
+               nt_vector; nt_list] in
+  let nt1 = make_skipped_star nt1 in
+  nt1 str;;
