@@ -207,7 +207,7 @@ and nt_char_named str =
 and nt_char_hex str = raise X_not_yet_implemented
 and nt_char str = 
   let prefix = word "#\\" in
-  let nt1 = disj nt_char_simple nt_char_named in
+  let nt1 = disj nt_char_named nt_char_simple in
   let nt = caten prefix nt1 in
   let nt = pack nt (fun (_, ch) -> ScmChar ch) in
   nt str
