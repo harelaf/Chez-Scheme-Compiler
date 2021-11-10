@@ -115,9 +115,9 @@ and make_nt_hex a f =
       let nt2 = pack nt2
                   (fun digits ->
                     List.fold_left
-                      (fun a b -> 16*a + b)
-                      0
-                      digits) in
+                      (fun a b -> 16*a + b) 
+                      digits 
+                      0) in
       let nt1 = caten nt1 nt2 in
       let nt1 = pack nt1 (fun (_, n) -> n) in
       nt1
