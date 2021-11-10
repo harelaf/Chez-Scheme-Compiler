@@ -3,7 +3,6 @@
 
 open PC;;
 
-
 let unitify nt = pack nt (fun _ -> ());;
 
 let rec nt_whitespace str =
@@ -21,8 +20,13 @@ and nt_line_comment str =
   let nt1 = caten nt1 (caten nt2 nt_end) in
   let nt1 = unitify nt1 in
   nt1 str
+and nt_paired_comment str = raise X_not_yet_implemented
+and nt_sexpr_comment str = raise X_not_yet_implemented
 and nt_comment str =
-  nt_line_comment str
+  disj_list
+    [nt_line_comment;
+     nt_paired_comment;
+     nt_sexpr_comment] str
 and nt_skip_star str =
   let nt1 = disj (unitify nt_whitespace) nt_comment in
   let nt1 = unitify (star nt1) in
@@ -120,11 +124,11 @@ and nt_float str =
   let floatB_2 = pack floatB_2 (fun (_, (man, exp)) -> ScmReal (man *. exp)) in
   let floatB_2_pos = pack floatB_2_pos (fun (_, (_, (man, exp))) -> ScmReal (man *. exp)) in
   let floatB_2_neg = pack floatB_2_neg (fun (_, (_, (man, exp))) -> ScmReal (-.(man *. exp))) in
-  let floatB = disj floatB_1_neg floatB_1_pos in
-  let floatB = disj floatB floatB_2_pos in
-  let floatB = disj floatB floatB_2_neg in
-  let floatB = disj floatB floatB_1 in
+  let floatB = disj floatB_2_neg floatB_2_pos in
+  let floatB = disj floatB floatB_1_pos in
+  let floatB = disj floatB floatB_1_neg in
   let floatB = disj floatB floatB_2 in
+  let floatB = disj floatB floatB_1 in
 
   let floatC = caten nt_integer_part nt_exponent in
   let floatC = pack floatC (fun ((op, n), exp) -> ScmReal ((float_of_string ((String.make 1 op) ^ (string_of_int n))) *. exp)) in
@@ -163,6 +167,7 @@ and nt_char_named str =
                (make_named_char "space" ' ');
                (make_named_char "tab" '\t')] in
   nt1 str
+and nt_char_hex str = raise X_not_yet_implemented
 and nt_char str = 
   let prefix = word "#\\" in
   let nt1 = disj nt_char_named nt_char_simple in
@@ -194,6 +199,7 @@ and nt_symbol str =
   let nt1 = pack nt1 (fun name -> ScmSymbol name) in
   let nt1 = diff nt1 nt_number in
   nt1 str
+and nt_string str = raise X_not_yet_implemented
 and nt_vector str =
   let nt1 = word "#(" in
   let nt2 = caten nt_skip_star (char ')') in
@@ -227,9 +233,10 @@ and nt_list str =
 
   let nt = disj nt1 nt2 in
   nt str
+and nt_quoted_forms str = raise X_not_yet_implemented
 and nt_sexpr str =
   let nt1 =
     disj_list [nt_number; nt_boolean; nt_char; nt_symbol;
-               nt_vector; nt_list] in
+               nt_string; nt_vector; nt_list; nt_quoted_forms] in
   let nt1 = make_skipped_star nt1 in
   nt1 str;;
