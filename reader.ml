@@ -204,7 +204,13 @@ and nt_char_named str =
                (make_named_char "space" ' ');
                (make_named_char "tab" '\t')] in
   nt1 str
-and nt_char_hex str = raise X_not_yet_implemented
+
+and nt_char_hex str = 
+  let nt1 = range '0' '9' in
+  let nt2 = range_ci 'a' 'f' in
+  let nt1 = disj nt1 nt2 in
+  nt1 str
+
 and nt_char str = 
   let prefix = word "#\\" in
   let nt1 = disj nt_char_named nt_char_simple in
@@ -271,6 +277,7 @@ and nt_list str =
   let nt = disj nt1 nt2 in
   nt str
 and nt_quoted_forms str = raise X_not_yet_implemented
+
 and nt_sexpr str =
   let nt1 =
     disj_list [nt_number; nt_boolean; nt_char; nt_symbol;
