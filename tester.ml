@@ -20,8 +20,20 @@ and nt_line_comment str =
   let nt1 = caten nt1 (caten nt2 nt_end) in
   let nt1 = unitify nt1 in
   nt1 str
-and nt_paired_comment str = raise X_not_yet_implemented
-and nt_sexpr_comment str = raise X_not_yet_implemented
+and nt_paired_comment str = 
+  let left = char '{' in
+  let right = char '}' in
+  let left_not_allowed = word "\\{" in
+  let right_not_allowed = word "\\}" in
+  let allowed = diff nt_any (disj left_not_allowed right_not_allowed) in
+  let nt = caten left (caten allowed right) in
+  let nt = unitify nt in
+  nt str
+and nt_sexpr_comment str = 
+  let nt1 = word "#;" in
+  let nt1 = caten nt1 nt_sexpr in
+  let nt1 = unitify nt1 in
+  nt1 str
 and nt_comment str =
   disj_list
     [nt_line_comment;
@@ -59,7 +71,8 @@ and nt_frac str =
   let num = pack num (fun (ds) -> int_of_string (list_to_string ds)) in
 
   let fracs = caten nt_int (caten nt1 num) in
-  let fracs = pack fracs (fun (numerator, (_, denominator)) -> ScmRational(numerator, denominator)) in
+  let fracs = pack fracs (fun (numerator, (_, denominator)) -> if denominator = 0 then raise X_no_match 
+                                                                                  else ScmRational(numerator / (gcd numerator denominator), denominator / (gcd numerator denominator))) in
   fracs str
 and nt_integer_part str =
   let plus_op = char '+' in
@@ -150,7 +163,6 @@ and nt_boolean str =
   let nt2 = word_ci "#t" in
   let nt2 = pack nt2 (fun _ -> true) in
   let nt1 = disj nt1 nt2 in
-  (* let nt1 = not_followed_by nt1 nt_symbol in *)
   let nt1 = pack nt1 (fun b -> ScmBoolean b) in
   nt1 str
 and nt_char_simple str = 
@@ -167,10 +179,30 @@ and nt_char_named str =
                (make_named_char "space" ' ');
                (make_named_char "tab" '\t')] in
   nt1 str
-and nt_char_hex str = raise X_not_yet_implemented
+and nt_char_hex str = 
+  let nt1 = range '0' '9' in
+  let nt2 = range_ci 'a' 'f' in
+  let nt2 = disj nt1 nt2 in
+  let nt2 = plus nt2 in
+  let nt2 = pack nt2 (fun (lst) -> List.fold_left 
+                                    (fun b a -> if (int_of_char a) <= (int_of_char '9')
+                                                then (int_of_char a) - (int_of_char '0') + 16*b
+                                                else
+                                                  if (int_of_char a) >= (int_of_char 'a')
+                                                  then (int_of_char a) - (int_of_char 'a') + 10 + 16*b
+                                                  else
+                                                    (int_of_char a) - (int_of_char 'A') + 10 + 16*b)
+                                    0 
+                                    lst) in
+
+  let nt_prefix = char_ci 'x' in
+  let nt = caten nt_prefix nt2 in
+  let nt = pack nt (fun (_, n) -> char_of_int n) in
+  nt str
 and nt_char str = 
   let prefix = word "#\\" in
   let nt1 = disj nt_char_named nt_char_simple in
+  let nt1 = disj nt1 nt_char_hex in
   let nt = caten prefix nt1 in
   let nt = pack nt (fun (_, ch) -> ScmChar ch) in
   nt str
@@ -199,7 +231,39 @@ and nt_symbol str =
   let nt1 = pack nt1 (fun name -> ScmSymbol name) in
   let nt1 = diff nt1 nt_number in
   nt1 str
-and nt_string str = raise X_not_yet_implemented
+and nt_string str = 
+  let nt1 = disj (char '\"') (char '\\') in
+  let nt1 = disj nt1 (char '~') in
+  let nt_literal_char = diff nt_any nt1 in
+
+  let nt2 = disj (char '\"') (char '\\') in
+  let nt2 = disj nt2 (char '\t') in
+  let nt2 = disj nt2 (char '\012') in
+  let nt2 = disj nt2 (char '\n') in
+  let nt2 = disj nt2 (char '\r') in
+  let nt_meta_char = disj nt2 (char '~') in
+
+  let nt3 = caten (char '\\') nt_char_hex in
+  let nt_hex_char = caten nt3 (char ';') in
+  let nt_hex_char = pack nt_hex_char (fun ((_, ch), _) -> ch) in
+  
+  let nt_tilde = char '~' in
+  let nt_left = char '{' in
+  let nt_right = char '}' in
+  let nt_interpolated = caten nt_tilde (caten nt_left (caten (make_skipped_star nt_sexpr) nt_right)) in
+  let nt_interpolated = pack nt_interpolated (fun (_, (_, (expr, _))) -> ScmPair(ScmSymbol "format", ScmPair(ScmString("~a"), ScmPair(expr, ScmNil)))) in
+
+  let nt_chars = disj nt_hex_char nt_meta_char in
+  let nt_chars = disj nt_chars nt_literal_char in
+  let nt_chars = star nt_chars in
+  let nt_chars = pack nt_chars (fun lst -> ScmString(list_to_string lst)) in
+
+  let nt_combined = disj nt_chars nt_interpolated in
+  (* let nt_combined = star nt_combined in *)
+
+  let nt = caten (char '\"') (caten nt_combined (char '\"')) in
+  let nt = pack nt (fun (_, (expr, _)) -> expr) in
+  nt str
 and nt_vector str =
   let nt1 = word "#(" in
   let nt2 = caten nt_skip_star (char ')') in
@@ -213,19 +277,19 @@ and nt_vector str =
   let nt1 = pack nt1 (fun (_, sexpr) -> sexpr) in
   nt1 str
 and nt_list str = 
-  let right_bracket = char '(' in
-  let left_bracket = char ')' in
+  let left_bracket = char '(' in
+  let right_bracket = char ')' in
   let dot = char '.' in
 
   let star_sxepr = star nt_sexpr in
   let plus_sexpr = plus nt_sexpr in
 
-  let nt1 = caten right_bracket (caten star_sxepr left_bracket) in
-  let nt1 = pack nt1 (fun (_, (exprs, _)) -> List.fold_left 
-                                              (fun a b -> ScmPair (b, a))
-                                              ScmNil
-                                              exprs) in
-  let nt2 = caten right_bracket (caten plus_sexpr (caten dot (caten nt_sexpr left_bracket))) in
+  let nt1 = caten left_bracket (caten star_sxepr right_bracket) in
+  let nt1 = pack nt1 (fun (_, (exprs, _)) -> List.fold_right 
+                                              (fun b a -> ScmPair (b, a))
+                                              exprs
+                                              ScmNil) in
+  let nt2 = caten left_bracket (caten plus_sexpr (caten dot (caten nt_sexpr right_bracket))) in
   let nt2 = pack nt2 (fun (_, (exprs, (_, (expr, _)))) -> List.fold_left 
                                                             (fun a b -> ScmPair (b, a))
                                                             expr
@@ -233,10 +297,69 @@ and nt_list str =
 
   let nt = disj nt1 nt2 in
   nt str
-and nt_quoted_forms str = raise X_not_yet_implemented
+and nt_quoted_forms str = 
+  let nt1 = char '\'' in
+  let nt1 = caten nt1 nt_sexpr in
+  let nt_quote = pack nt1 (fun (_, expr) -> ScmPair(ScmSymbol "quote", ScmPair(expr, ScmNil))) in
+
+  let nt2 = char '`' in
+  let nt2 = caten nt2 nt_sexpr in
+  let nt_quasiquote = pack nt2 (fun (_, expr) -> ScmPair(ScmSymbol "quasiquote", ScmPair(expr, ScmNil))) in
+
+  let nt3 = char ',' in
+  let nt3 = caten nt3 nt_sexpr in
+  let nt_unquote = pack nt3 (fun (_, expr) -> ScmPair(ScmSymbol "unquote", ScmPair(expr, ScmNil))) in
+
+  let nt4 = word ",@" in
+  let nt4 = caten nt4 nt_sexpr in
+  let nt_unquote_splicing = pack nt4 (fun (_, expr) -> ScmPair(ScmSymbol "unquote-splicing", ScmPair(expr, ScmNil))) in
+
+  let nt = disj nt_quote nt_quasiquote in
+  let nt = disj nt nt_unquote_splicing in
+  let nt = disj nt nt_unquote in
+  nt str
 and nt_sexpr str =
   let nt1 =
     disj_list [nt_number; nt_boolean; nt_char; nt_symbol;
-               nt_string; nt_vector; nt_list; nt_quoted_forms] in
+              nt_string; nt_vector; nt_list; nt_quoted_forms] in
   let nt1 = make_skipped_star nt1 in
   nt1 str;;
+
+  let nt1 = disj (char '\"') (char '\\') ;;
+  let nt1 = disj nt1 (char '~') ;;
+  let nt_literal_char = diff nt_any nt1 ;;
+
+  let nt2 = disj (pack (word "\\\"") (fun _ -> '\"')) (pack (word "\\\\") (fun _ -> '\\')) ;;
+  let nt2 = disj nt2 (pack (word "\\t") (fun _ -> '\t')) ;;
+  let nt2 = disj nt2 (pack (word "\\f") (fun _ -> '\012')) ;;
+  let nt2 = disj nt2 (pack (word "\\n") (fun _ -> '\n')) ;;
+  let nt2 = disj nt2 (pack (word "\\r") (fun _ -> '\r')) ;;
+  let nt_meta_char = disj nt2 (pack (word "~~") (fun _ -> '~')) ;;
+
+  let nt3 = caten (char '\\') nt_char_hex ;;
+  let nt_hex_char = caten nt3 (char ';') ;;
+  let nt_hex_char = pack nt_hex_char (fun ((_, ch), _) -> ch) ;;
+  
+  let nt_tilde = char '~' ;;
+  let nt_left = char '{' ;;
+  let nt_right = char '}' ;;
+  let nt_interpolated = caten nt_tilde (caten nt_left (caten (make_skipped_star nt_sexpr) nt_right)) ;;
+  let nt_interpolated = pack nt_interpolated (fun (_, (_, (expr, _))) -> ScmPair(ScmSymbol "format", ScmPair(ScmString("~a"), ScmPair(expr, ScmNil)))) ;;
+
+  let nt_chars = disj nt_meta_char nt_hex_char ;;
+  let nt_chars = disj nt_chars nt_literal_char ;;
+  let nt_chars = plus nt_chars ;;
+  let nt_chars = pack nt_chars (fun lst -> ScmString(list_to_string lst)) ;;
+
+  let nt_combined = disj nt_interpolated nt_chars ;;
+let rec make_pairs =
+  function
+    | [] -> ScmNil
+    | [e1] -> ScmPair(e1, ScmNil)
+    | head :: tail -> ScmPair(head, make_pairs tail);;
+  let nt_combined_star = star nt_combined ;;
+  let nt_combined_star = pack nt_combined_star (fun lst -> if List.length lst == 0 
+                                                            then ScmString("")
+                                                            else if List.length lst = 1
+                                                              then List.hd lst
+                                                              else ScmPair(ScmSymbol("string-append"), make_pairs lst)) ;;
