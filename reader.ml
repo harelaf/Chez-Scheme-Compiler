@@ -64,7 +64,7 @@ and nt_line_comment str =
   let nt1 = unitify nt1 in
   nt1 str
 and nt_paired_comment str = 
-  let problematic_sexprs = disj (unitify nt_char) (unitify nt_string) in
+  let problematic_sexprs = disj (unitify (disj (word "#\\{") (word "#\\}"))) (unitify nt_string) in
   let problematic_sexprs = disj problematic_sexprs (unitify nt_comment) in
   let nt1 = disj problematic_sexprs (unitify (one_of "{}")) in
   let nt2 = diff nt_any nt1 in
