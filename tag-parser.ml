@@ -52,10 +52,25 @@ let rec scm_list_to_list = function
 | ScmNil -> []
 | sexpr -> raise (X_syntax_error (sexpr, "Expected proper list"));;
 
+let rec scm_improper_list_to_list = function
+| ScmPair (hd, tl) -> hd::(scm_improper_list_to_list tl)
+| ScmNil -> []
+| sexpr -> [sexpr];;
+
+let rec remove_last_elem = function
+| [] -> []
+| hd::[] -> []
+| hd::tl -> hd::(remove_last_elem tl)
+
 let rec scm_is_list = function
 | ScmPair (hd, tl) -> scm_is_list tl
 | ScmNil -> true
 | _ -> false
+
+let rec scm_is_improper_list = function
+| ScmPair (hd, tl) -> scm_is_improper_list tl
+| ScmNil -> false
+| _ -> true
 
 let rec scm_list_length = function
 | ScmPair (hd, tl) -> 1 + (scm_list_length tl)
@@ -156,8 +171,77 @@ let reserved_word_list =
 
 let rec tag_parse_expression sexpr =
 let sexpr = macro_expand sexpr in
-match sexpr with 
-(* Implement tag parsing here *)
+match sexpr with
+| ScmNil -> ScmConst(ScmNil)
+| ScmBoolean(x) -> ScmConst(ScmBoolean(x))
+| ScmChar(x) -> ScmConst(ScmChar(x))
+| ScmNumber(x) -> ScmConst(ScmNumber(x))
+| ScmString(x) -> ScmConst(ScmString(x))
+| ScmPair (ScmSymbol "quote", (ScmPair (x, ScmNil))) -> ScmConst(x)
+| ScmSymbol(x) -> if (List.mem x reserved_word_list) 
+                    then raise (X_reserved_word (x))
+                    else ScmVar(x)
+| ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmPair(dif, ScmNil)))) ->
+    ScmIf(tag_parse_expression test, tag_parse_expression dit, tag_parse_expression dif)
+| ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmNil))) ->
+    ScmIf(tag_parse_expression test, tag_parse_expression dit, ScmConst ScmVoid)
+| ScmPair(ScmSymbol("or"), ScmNil) -> ScmConst (ScmBoolean false)
+| ScmPair(ScmSymbol("or"), ScmPair(x, ScmNil)) -> tag_parse_expression x
+| ScmPair(ScmSymbol("or"), exprs) -> 
+  let or_exprs = scm_list_to_list exprs in 
+  ScmOr(List.map tag_parse_expression or_exprs)
+| ScmPair(ScmSymbol("lambda"), ScmPair(ScmSymbol(args), exprs)) ->
+  if (scm_list_length exprs = 1)
+    then 
+      let expr = List.nth (scm_list_to_list exprs) 0 in
+      ScmLambdaOpt([], args, tag_parse_expression expr)
+    else
+      let lambda_exprs = scm_list_to_list exprs in
+      ScmLambdaOpt([], args, ScmSeq(List.map tag_parse_expression lambda_exprs))
+| ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs)) ->
+  if (scm_is_improper_list variables)
+    then 
+      let full_improper_varaibles = scm_improper_list_to_list variables in
+      let lambda_variables = remove_last_elem full_improper_varaibles in
+      if (scm_list_length exprs = 1)
+        then 
+          let expr = List.nth (scm_list_to_list exprs) 0 in
+          ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), tag_parse_expression expr)
+        else
+          let lambda_exprs = scm_list_to_list exprs in
+          ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), ScmSeq(List.map tag_parse_expression lambda_exprs))
+    else
+      let lambda_variables = scm_list_to_list variables in
+      if (scm_list_length exprs = 1)
+        then 
+          let expr = List.nth (scm_list_to_list exprs) 0 in
+          ScmLambdaSimple(List.map string_of_sexpr lambda_variables, tag_parse_expression expr)
+        else
+          let lambda_exprs = scm_list_to_list exprs in
+          ScmLambdaSimple(List.map string_of_sexpr lambda_variables, ScmSeq(List.map tag_parse_expression lambda_exprs))
+| ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))) ->
+  if (List.mem (string_of_sexpr var) reserved_word_list)
+    then
+      raise (X_syntax_error (ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of define"))
+    else
+      if (sexpr_eq var (ScmSymbol(string_of_sexpr var)))
+        then
+          ScmDef(tag_parse_expression var, tag_parse_expression value)
+        else
+          raise (X_syntax_error (ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of define"))
+(* AYYYYOOOO BRUH IMPLEMENT MIT DEFINE
+  AYYYYYYYYYYY YOOOOOOOOOO
+  BRUH*)
+| ScmPair(ScmSymbol("set!"), ScmPair(var, ScmPair(value, ScmNil))) ->
+  if (List.mem (string_of_sexpr var) reserved_word_list)
+    then
+      raise (X_syntax_error (ScmPair(ScmSymbol("set"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of set!"))
+    else
+      if (sexpr_eq var (ScmSymbol(string_of_sexpr var)))
+        then
+          ScmSet(tag_parse_expression var, tag_parse_expression value)
+        else
+          raise (X_syntax_error (ScmPair(ScmSymbol("set!"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of set!"))
 | _ -> raise (X_syntax_error (sexpr, "Sexpr structure not recognized"))
 
 and macro_expand sexpr =
