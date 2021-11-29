@@ -172,6 +172,7 @@ let reserved_word_list =
 let rec tag_parse_expression sexpr =
 let sexpr = macro_expand sexpr in
 match sexpr with
+(* CONSTANTS *)
 | ScmNil -> ScmConst(ScmNil)
 | ScmBoolean(x) -> ScmConst(ScmBoolean(x))
 | ScmChar(x) -> ScmConst(ScmChar(x))
@@ -181,15 +182,18 @@ match sexpr with
 | ScmSymbol(x) -> if (List.mem x reserved_word_list) 
                     then raise (X_reserved_word (x))
                     else ScmVar(x)
+(* IF STATEMENTS *)
 | ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmPair(dif, ScmNil)))) ->
     ScmIf(tag_parse_expression test, tag_parse_expression dit, tag_parse_expression dif)
 | ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmNil))) ->
     ScmIf(tag_parse_expression test, tag_parse_expression dit, ScmConst ScmVoid)
+(* OR EXPRESSIONS *)
 | ScmPair(ScmSymbol("or"), ScmNil) -> ScmConst (ScmBoolean false)
 | ScmPair(ScmSymbol("or"), ScmPair(x, ScmNil)) -> tag_parse_expression x
 | ScmPair(ScmSymbol("or"), exprs) -> 
   let or_exprs = scm_list_to_list exprs in 
   ScmOr(List.map tag_parse_expression or_exprs)
+(* LAMBDA EXPRESSIONS *)
 | ScmPair(ScmSymbol("lambda"), ScmPair(ScmSymbol(args), exprs)) ->
   if (scm_list_length exprs = 1)
     then 
@@ -219,6 +223,9 @@ match sexpr with
         else
           let lambda_exprs = scm_list_to_list exprs in
           ScmLambdaSimple(List.map string_of_sexpr lambda_variables, ScmSeq(List.map tag_parse_expression lambda_exprs))
+(* DEFINE *)
+| ScmPair(ScmSymbol("define"), ScmPair(ScmPair(name, args), exprs)) ->
+  ScmDef(tag_parse_expression name, tag_parse_expression (ScmPair(ScmSymbol("lambda"), ScmPair(args, exprs))))
 | ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))) ->
   if (List.mem (string_of_sexpr var) reserved_word_list)
     then
@@ -229,9 +236,7 @@ match sexpr with
           ScmDef(tag_parse_expression var, tag_parse_expression value)
         else
           raise (X_syntax_error (ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of define"))
-(* AYYYYOOOO BRUH IMPLEMENT MIT DEFINE
-  AYYYYYYYYYYY YOOOOOOOOOO
-  BRUH*)
+(* ASSIGNMENTS *)
 | ScmPair(ScmSymbol("set!"), ScmPair(var, ScmPair(value, ScmNil))) ->
   if (List.mem (string_of_sexpr var) reserved_word_list)
     then
@@ -242,6 +247,34 @@ match sexpr with
           ScmSet(tag_parse_expression var, tag_parse_expression value)
         else
           raise (X_syntax_error (ScmPair(ScmSymbol("set!"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of set!"))
+(* SEQUENCES *)
+| ScmPair(ScmSymbol "begin", exprs) ->
+  let exprs_list = scm_list_to_list exprs in
+  ScmSeq(List.map tag_parse_expression exprs_list)
+    (* AYYYYYYOOOOOOOOOOOOOOO
+  FINISH SEQUENCES BRUV
+  AYYYYYYYYYYYYY YOOOOOOOOOOOOOOOOOOOOOOOO
+  KINDA SUSSY NGL FR FR ON A STACK NO KIZZY
+  BRUH MOMENT
+  UNLESS...? *)
+(* APPLICATIONS *)
+| ScmPair(ScmPair(ScmSymbol("lambda"), body), args) ->
+  let args_list = scm_list_to_list args in
+  ScmApplic(tag_parse_expression (ScmPair(ScmSymbol("lambda"), body)), List.map tag_parse_expression args_list)
+| ScmPair(func, ScmNil) -> 
+  if not (List.mem (string_of_sexpr func) reserved_word_list)
+    then
+      ScmApplic(tag_parse_expression func, [])
+  else
+    raise (X_syntax_error (func, "This is a reserved word"))
+| ScmPair(func, args) ->
+  if not (List.mem (string_of_sexpr func) reserved_word_list)
+    then
+      let args_list = scm_list_to_list args in
+      ScmApplic(tag_parse_expression func, List.map tag_parse_expression args_list)
+  else
+    raise (X_syntax_error (func, "This is a reserved word"))
+(* STRUCTURE NOT RECOGNIZED *)
 | _ -> raise (X_syntax_error (sexpr, "Sexpr structure not recognized"))
 
 and macro_expand sexpr =
