@@ -248,6 +248,8 @@ match sexpr with
         else
           raise (X_syntax_error (ScmPair(ScmSymbol("set!"), ScmPair(var, ScmPair(value, ScmNil))), "Expected variable on LHS of set!"))
 (* SEQUENCES *)
+| ScmPair(ScmSymbol "begin", ScmPair(expr, ScmNil)) ->
+  tag_parse_expression expr
 | ScmPair(ScmSymbol "begin", exprs) ->
   let exprs_list = scm_list_to_list exprs in
   ScmSeq(List.map tag_parse_expression exprs_list)
@@ -279,74 +281,112 @@ match sexpr with
 | ScmPair(ScmSymbol("and"), ScmPair(expr, exprs)) -> 
   ScmPair(ScmSymbol("if"), ScmPair(expr, ScmPair(macro_expand (ScmPair(ScmSymbol("and"), exprs)), ScmPair(ScmBoolean(false), ScmNil))))
 (* COND EXPRESSIONS *)
-(* | ScmPair(ScmSymbol("cond"), exprs) ->
-  match exprs with
-  | ScmNil -> ScmPair(ScmSymbol("cond"), ScmNil)
-  | ScmPair(ScmPair(ScmSymbol "else", body), rest) ->
-    ScmPair(ScmSymbol("begin"), macro_expand body)
-  | ScmPair(ScmPair(test, ScmPair(ScmSymbol("=>"), body)), rest) ->
-    macro expand
-    (ScmPair
-   (ScmSymbol "let",
-    ScmPair
-     (ScmPair
-       (ScmPair (ScmSymbol "value", ScmPair (macro_expand test, ScmNil)),
-        ScmPair
-         (ScmPair
-           (ScmSymbol "f",
-            ScmPair
-             (ScmPair
-               (ScmSymbol "lambda",
-                ScmPair (ScmNil, ScmPair (macro_expand body, ScmNil))),
-              ScmNil)),
-          ScmPair
-           (ScmPair
-             (ScmSymbol "rest",
-              ScmPair
-               (ScmPair
-                 (ScmSymbol "lambda",
-                  ScmPair (ScmNil, ScmPair (macro_expand (ScmPair(ScmSymbol("cond"), rest), ScmNil))),
-                ScmNil)),
-            ScmNil))),
-      ScmPair
-       (ScmPair
-         (ScmSymbol "if",
-          ScmPair
-           (ScmSymbol "value",
-            ScmPair
-             (ScmPair
-               (ScmPair (ScmSymbol "f", ScmNil),
-                ScmPair (ScmSymbol "value", ScmNil)),
-              ScmPair (ScmPair (ScmSymbol "rest", ScmNil), ScmNil)))),
-        ScmNil))))
-  | ScmPair(ScmPair(test, body)), rest) ->
-     *)
-  (* LET EXPRESSIONS *)
-  | ScmPair(ScmSymbol("let"), ScmPair(ScmNil, body)) ->
-    ScmPair(ScmPair(ScmSymbol "lambda", ScmPair(ScmNil, body)), ScmNil)
-  | ScmPair(ScmSymbol "let", ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ribs), body)) ->
-    let ribs_list = scm_list_to_list ribs in
-    let ribs_list = List.map scm_list_to_list ribs_list in
-    ScmPair(ScmPair(ScmSymbol "lambda", ScmPair(macro_expand (ScmPair(arg, list_to_proper_list (List.map (fun x -> List.nth x 0) ribs_list))), body)), ScmPair(value, list_to_proper_list (List.map (fun x -> List.nth x 1) ribs_list)))
-  (* LET* EXPRESSIONS *)
-  | ScmPair(ScmSymbol("let*"), ScmPair(ScmNil, body)) ->
-    macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmNil, body)))
-  | ScmPair(ScmSymbol("let*"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), body)) ->
-    macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), body)))
-  | ScmPair(ScmSymbol("let*"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ribs), body)) ->
-    macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), ScmPair(ScmPair(ScmSymbol("let*"), ScmPair(ribs, body)), ScmNil))))
-  (* LETREC EXPRESSIONS *)
-  | ScmPair(ScmSymbol("letrec"), ScmPair(ScmNil, body)) ->
-    macro_expand (ScmPair(ScmSymbol "let", ScmPair (ScmNil, body)))
-  | ScmPair(ScmSymbol("letrec"), ScmPair(ribs, body)) ->
-    let ribs_list = scm_list_to_list ribs in
-    let ribs_list = List.map scm_list_to_list ribs_list in
-    let whatever_list = List.map (fun x -> ScmPair(List.nth x 0, ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmSymbol("whatever"), ScmNil)), ScmNil))) ribs_list in
-    let set_list = List.map (fun x -> ScmPair(ScmSymbol("set!"), ScmPair(List.nth x 0, ScmPair(List.nth x 1, ScmNil)))) ribs_list in
-    (* let last_let = ScmPair(ScmSymbol("let"), ScmPair(ScmNil, body)) in
-    macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ [last_let])))) *)
-    let body_list = scm_list_to_list body in
-    macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ body_list))))
+| ScmPair(ScmSymbol("cond"), ScmNil) ->
+  raise (X_syntax_error(ScmPair(ScmSymbol("cond"), ScmNil), "Sexpr structure not recognized"))
+| ScmPair(ScmSymbol("cond"), ScmPair(ScmPair(ScmSymbol("else"), body), rest)) ->
+  ScmPair(ScmSymbol("begin"), body)
+| ScmPair(ScmSymbol("cond"), ScmPair(ScmPair(test, ScmPair(ScmSymbol("=>"), body)), rest)) ->
+  if not (rest = ScmNil)
+    then
+    macro_expand
+            (ScmPair
+              (ScmSymbol "let",
+                ScmPair
+                (ScmPair
+                  (ScmPair (ScmSymbol "value", ScmPair (test, ScmNil)),
+                    ScmPair
+                    (ScmPair
+                      (ScmSymbol "f",
+                        ScmPair
+                        (ScmPair
+                          (ScmSymbol "lambda",
+                            ScmPair (ScmNil, body)),
+                          ScmNil)),
+                      ScmPair
+                      (ScmPair
+                        (ScmSymbol "rest",
+                          ScmPair
+                          (ScmPair
+                            (ScmSymbol "lambda",
+                              ScmPair (ScmNil, ScmPair (ScmPair(ScmSymbol("cond"), rest), ScmNil))),
+                            ScmNil)),
+                        ScmNil))),
+                  ScmPair
+                  (ScmPair
+                    (ScmSymbol "if",
+                      ScmPair
+                      (ScmSymbol "value",
+                        ScmPair
+                        (ScmPair
+                          (ScmPair (ScmSymbol "f", ScmNil),
+                            ScmPair (ScmSymbol "value", ScmNil)),
+                          ScmPair (ScmPair (ScmSymbol "rest", ScmNil), ScmNil)))),
+                    ScmNil))))
+    else 
+      macro_expand
+            (ScmPair
+              (ScmSymbol "let",
+                ScmPair
+                (ScmPair
+                  (ScmPair (ScmSymbol "value", ScmPair (test, ScmNil)),
+                    ScmPair
+                    (ScmPair
+                      (ScmSymbol "f",
+                        ScmPair
+                        (ScmPair
+                          (ScmSymbol "lambda",
+                            ScmPair (ScmNil, body)),  
+                          ScmNil)),
+                      ScmPair
+                      (ScmPair
+                        (ScmSymbol "rest",
+                          ScmPair
+                          (ScmPair
+                            (ScmSymbol "lambda",
+                              ScmPair (ScmNil, ScmPair (ScmVoid, ScmNil))),
+                            ScmNil)),
+                        ScmNil))),
+                  ScmPair
+                  (ScmPair
+                    (ScmSymbol "if",
+                      ScmPair
+                      (ScmSymbol "value",
+                        ScmPair
+                        (ScmPair
+                          (ScmPair (ScmSymbol "f", ScmNil),
+                            ScmPair (ScmSymbol "value", ScmNil)),
+                          ScmPair (ScmPair (ScmSymbol "rest", ScmNil), ScmNil)))),
+                    ScmNil))))
+| ScmPair(ScmSymbol("cond"), ScmPair(ScmPair(test, body), rest)) ->
+  if not (rest = ScmNil)
+    then
+      ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(ScmPair(ScmSymbol("begin"), body), ScmPair (ScmPair(ScmSymbol("cond"), rest), ScmNil))))
+    else
+      ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(ScmPair(ScmSymbol("begin"), body), ScmNil)))
+(* LET EXPRESSIONS *)
+| ScmPair(ScmSymbol("let"), ScmPair(ScmNil, body)) ->
+  ScmPair(ScmPair(ScmSymbol "lambda", ScmPair(ScmNil, body)), ScmNil)
+| ScmPair(ScmSymbol "let", ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ribs), body)) ->
+  let ribs_list = scm_list_to_list ribs in
+  let ribs_list = List.map scm_list_to_list ribs_list in
+  ScmPair(ScmPair(ScmSymbol "lambda", ScmPair(macro_expand (ScmPair(arg, list_to_proper_list (List.map (fun x -> List.nth x 0) ribs_list))), body)), ScmPair(value, list_to_proper_list (List.map (fun x -> List.nth x 1) ribs_list)))
+(* LET* EXPRESSIONS *)
+| ScmPair(ScmSymbol("let*"), ScmPair(ScmNil, body)) ->
+  macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmNil, body)))
+| ScmPair(ScmSymbol("let*"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), body)) ->
+  macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), body)))
+| ScmPair(ScmSymbol("let*"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ribs), body)) ->
+  macro_expand (ScmPair(ScmSymbol("let"), ScmPair(ScmPair(ScmPair(arg, ScmPair(value, ScmNil)), ScmNil), ScmPair(ScmPair(ScmSymbol("let*"), ScmPair(ribs, body)), ScmNil))))
+(* LETREC EXPRESSIONS *)
+| ScmPair(ScmSymbol("letrec"), ScmPair(ScmNil, body)) ->
+  macro_expand (ScmPair(ScmSymbol "let", ScmPair (ScmNil, body)))
+| ScmPair(ScmSymbol("letrec"), ScmPair(ribs, body)) ->
+  let ribs_list = scm_list_to_list ribs in
+  let ribs_list = List.map scm_list_to_list ribs_list in
+  let whatever_list = List.map (fun x -> ScmPair(List.nth x 0, ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmSymbol("whatever"), ScmNil)), ScmNil))) ribs_list in
+  let set_list = List.map (fun x -> ScmPair(ScmSymbol("set!"), ScmPair(List.nth x 0, ScmPair(List.nth x 1, ScmNil)))) ribs_list in
+  let body_list = scm_list_to_list body in
+  macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ body_list))))
 | _ -> sexpr
 end;; 
 
