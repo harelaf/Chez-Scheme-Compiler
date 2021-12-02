@@ -178,7 +178,7 @@ match sexpr with
 | ScmChar(x) -> ScmConst(ScmChar(x))
 | ScmNumber(x) -> ScmConst(ScmNumber(x))
 | ScmString(x) -> ScmConst(ScmString(x))
-| ScmPair (ScmSymbol "quote", (ScmPair (x, ScmNil))) -> ScmConst(x)
+| ScmPair(ScmSymbol("quote"), (ScmPair (x, ScmNil))) -> ScmConst(x)
 | ScmSymbol(x) -> if (List.mem x reserved_word_list) 
                     then raise (X_reserved_word (x))
                     else ScmVar(x)
@@ -387,6 +387,23 @@ match sexpr with
   let set_list = List.map (fun x -> ScmPair(ScmSymbol("set!"), ScmPair(List.nth x 0, ScmPair(List.nth x 1, ScmNil)))) ribs_list in
   let body_list = scm_list_to_list body in
   macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ body_list))))
+(* QUASIQUOTE EXPRESSIONS *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmSymbol(x), ScmNil)) ->
+  ScmPair (ScmSymbol("quote"), (ScmPair (ScmSymbol(x), ScmNil)))
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmNil, ScmNil)) ->
+  ScmNil
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair (ScmSymbol("unquote"), ScmPair (expr, ScmNil)), ScmNil)) ->
+  expr
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair (ScmSymbol("unquote-splicing"), ScmPair (expr, ScmNil)), ScmNil)) ->
+  ScmPair(ScmSymbol("quote"), ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr, ScmNil)), ScmNil))
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr_A, ScmNil)), ScmNil),ScmNil)) ->
+  expr_A
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr_A, ScmNil)), expr_B),ScmNil)) ->
+  ScmPair(ScmSymbol("append"), ScmPair(expr_A, macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(expr_B, ScmNil)))))
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, ScmNil), ScmNil)) ->
+  ScmPair(ScmSymbol("quote"), ScmPair(ScmPair(expr_A, ScmNil), ScmNil))
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, expr_B), ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), expr_B))
 | _ -> sexpr
 end;; 
 
