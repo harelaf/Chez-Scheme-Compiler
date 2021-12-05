@@ -388,22 +388,44 @@ match sexpr with
   let body_list = scm_list_to_list body in
   macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ body_list))))
 (* QUASIQUOTE EXPRESSIONS *)
+(* `Symbol *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmSymbol(x), ScmNil)) ->
-  ScmPair (ScmSymbol("quote"), (ScmPair (ScmSymbol(x), ScmNil)))
+  ScmPair(ScmSymbol("quote"), (ScmPair (ScmSymbol(x), ScmNil)))
+(* `Nil *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmNil, ScmNil)) ->
   ScmNil
+(* `,expr *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair (ScmSymbol("unquote"), ScmPair (expr, ScmNil)), ScmNil)) ->
   expr
-| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair (ScmSymbol("unquote-splicing"), ScmPair (expr, ScmNil)), ScmNil)) ->
+(* `,@expr *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr, ScmNil)), ScmNil)) ->
   ScmPair(ScmSymbol("quote"), ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr, ScmNil)), ScmNil))
+(* `(,@expr_A) *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr_A, ScmNil)), ScmNil),ScmNil)) ->
-  expr_A
-| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr_A, ScmNil)), expr_B),ScmNil)) ->
-  ScmPair(ScmSymbol("append"), ScmPair(expr_A, macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(expr_B, ScmNil)))))
-| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, ScmNil), ScmNil)) ->
-  ScmPair(ScmSymbol("quote"), ScmPair(ScmPair(expr_A, ScmNil), ScmNil))
-| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, expr_B), ScmNil)) ->
-  ScmPair(ScmSymbol("cons"), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), expr_B))
+  ScmPair(ScmSymbol("append"), ScmPair(expr_A, ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmNil, ScmNil)), ScmNil)))
+(* `(,expr_A) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote"), ScmPair(expr_A, ScmNil)), ScmNil),ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(expr_A, ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmNil, ScmNil)), ScmNil)))
+(* `((expr_A rest)) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(expr_A, rest), ScmNil), ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, rest), ScmNil))), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmNil, ScmNil)), ScmNil)))
+(* `(,@expr_A rest) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote-splicing"), ScmPair(expr_A, ScmNil)), rest),ScmNil)) ->
+  ScmPair(ScmSymbol("append"), ScmPair(expr_A, ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
+(* `(,expr_A rest) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("unquote"), ScmPair(expr_A, ScmNil)), rest),ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(expr_A, ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
+(* `('expr_A rest) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), rest),ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), ScmNil))), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
+(* `#(exprs) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmVector exprs, ScmNil)) ->
+  let exprs_list = list_to_proper_list exprs in 
+  let expanded_exprs = macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(exprs_list, ScmNil))) in
+  ScmPair(ScmSymbol("list->vector"), ScmPair(expanded_exprs, ScmNil))
+(* `(expr_A, rest) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, rest),ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
 | _ -> sexpr
-end;; 
+end;;
 
