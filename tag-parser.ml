@@ -57,6 +57,10 @@ let rec scm_improper_list_to_list = function
 | ScmNil -> []
 | sexpr -> [sexpr];;
 
+let rec check_dup_lambda_vars = function
+| [] -> false
+| hd::tl -> (List.mem hd tl) || (check_dup_lambda_vars tl)
+
 let rec remove_last_elem = function
 | [] -> []
 | hd::[] -> []
@@ -207,25 +211,33 @@ match sexpr with
     then 
       let full_improper_varaibles = scm_improper_list_to_list variables in
       let lambda_variables = remove_last_elem full_improper_varaibles in
-      if (scm_list_length exprs = 1)
-        then 
-          let expr = List.nth (scm_list_to_list exprs) 0 in
-          ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), tag_parse_expression expr)
+      if (check_dup_lambda_vars full_improper_varaibles)
+        then
+          raise (X_syntax_error(variables, "lambda variables contain duplicates"))
         else
-          let lambda_exprs = scm_list_to_list exprs in
-          ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), ScmSeq(List.map tag_parse_expression lambda_exprs))
+          if (scm_list_length exprs = 1)
+            then 
+              let expr = List.nth (scm_list_to_list exprs) 0 in
+              ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), tag_parse_expression expr)
+            else
+              let lambda_exprs = scm_list_to_list exprs in
+              ScmLambdaOpt(List.map string_of_sexpr lambda_variables, string_of_sexpr (List.nth full_improper_varaibles ((List.length full_improper_varaibles) - 1)), ScmSeq(List.map tag_parse_expression lambda_exprs))
     else
-      let lambda_variables = scm_list_to_list variables in
-      if (scm_list_length exprs = 1)
-        then 
-          let expr = List.nth (scm_list_to_list exprs) 0 in
-          ScmLambdaSimple(List.map string_of_sexpr lambda_variables, tag_parse_expression expr)
-        else
-          let lambda_exprs = scm_list_to_list exprs in
-          ScmLambdaSimple(List.map string_of_sexpr lambda_variables, ScmSeq(List.map tag_parse_expression lambda_exprs))
+      if (check_dup_lambda_vars (scm_list_to_list variables))
+        then
+          raise (X_syntax_error(variables, "lambda variables contain duplicates"))
+        else 
+          let lambda_variables = scm_list_to_list variables in
+          if (scm_list_length exprs = 1)
+            then 
+              let expr = List.nth (scm_list_to_list exprs) 0 in
+              ScmLambdaSimple(List.map string_of_sexpr lambda_variables, tag_parse_expression expr)
+            else
+              let lambda_exprs = scm_list_to_list exprs in
+              ScmLambdaSimple(List.map string_of_sexpr lambda_variables, ScmSeq(List.map tag_parse_expression lambda_exprs))
 (* DEFINE *)
 | ScmPair(ScmSymbol("define"), ScmPair(ScmPair(name, args), exprs)) ->
-  ScmDef(tag_parse_expression name, tag_parse_expression (ScmPair(ScmSymbol("lambda"), ScmPair(args, exprs))))
+  tag_parse_expression (ScmPair(ScmSymbol("define"), ScmPair(name, ScmPair(ScmPair(ScmSymbol("lambda"), ScmPair(args, exprs)), ScmNil))))
 | ScmPair(ScmSymbol("define"), ScmPair(var, ScmPair(value, ScmNil))) ->
   if (List.mem (string_of_sexpr var) reserved_word_list)
     then
