@@ -266,9 +266,26 @@ match sexpr with
   let exprs_list = scm_list_to_list exprs in
   ScmSeq(List.map tag_parse_expression exprs_list)
 (* APPLICATIONS *)
-| ScmPair(ScmPair(ScmSymbol("lambda"), body), args) ->
+| ScmPair(ScmPair(ScmSymbol("lambda"), ScmPair(ScmSymbol(arg), exprs)), args) ->
   let args_list = scm_list_to_list args in
-  ScmApplic(tag_parse_expression (ScmPair(ScmSymbol("lambda"), body)), List.map tag_parse_expression args_list)
+  ScmApplic(tag_parse_expression (ScmPair(ScmSymbol("lambda"), ScmPair(ScmSymbol(arg), exprs))), List.map tag_parse_expression args_list)
+| ScmPair(ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs)), args) ->
+  let args_list = scm_list_to_list args in
+  if (scm_is_improper_list variables)
+    then 
+      let full_improper_varaibles = scm_improper_list_to_list variables in
+      if (List.length args_list >= (List.length full_improper_varaibles) - 1)
+        then
+          ScmApplic(tag_parse_expression (ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs))), List.map tag_parse_expression args_list)
+        else
+          raise (X_syntax_error(ScmPair(ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs)), args), "application of lambda with wrong number of arguments"))
+    else
+      let lambda_variables = scm_list_to_list variables in
+      if (List.length args_list = List.length lambda_variables)
+        then  
+          ScmApplic(tag_parse_expression (ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs))), List.map tag_parse_expression args_list)
+        else
+          raise (X_syntax_error(ScmPair(ScmPair(ScmSymbol("lambda"), ScmPair(variables, exprs)), args), "application of lambda with wrong number of arguments"))
 | ScmPair(func, ScmNil) -> 
   if not (List.mem (string_of_sexpr func) reserved_word_list)
     then
