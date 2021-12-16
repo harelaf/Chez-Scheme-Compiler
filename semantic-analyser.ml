@@ -151,15 +151,20 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
       | ScmBox' x -> ScmBox' x
       | ScmBoxGet' x -> ScmBoxGet' x 
       | ScmBoxSet'(var, expr) -> ScmBoxSet'(var, expr)
-      | ScmIf'(test, dit , dif) -> ScmIf'(run test in_tail, run dit in_tail, run dif in_tail)
-      (* | ScmSeq' of expr' list *)
-      (* | ScmSet' of var' * expr' *)
-      (* | ScmDef' of var' * expr' *)
-      (* | ScmOr' of expr' list *)
-      (* | ScmLambdaSimple' of string list * expr' *)
-      (* | ScmLambdaOpt' of string list * string * expr' *)
-      (* | ScmApplic' of expr' * (expr' list) *)
-      (* | ScmApplicTP' of expr' * (expr' list);; *)
+      | ScmIf'(test, dit , dif) -> ScmIf'(run test false, run dit false, run dif false)
+      | ScmSeq'(exprs) -> ScmSeq'(List.map (fun x -> run x false) exprs)
+      | ScmSet'(var, expr) -> ScmSet'(var, run expr false)
+      | ScmDef'(var, expr) -> ScmDef'(var, run expr false)
+      | ScmOr'(exprs) -> ScmOr'(List.map (fun x -> run x false) exprs)
+      | ScmLambdaSimple'(vars, expr) -> ScmLambdaSimple'(vars, run expr true)
+      | ScmLambdaOpt'(vars, var, expr) -> ScmLambdaOpt'(vars, var, run expr true)
+      | ScmApplic'(func, exprs) -> 
+        if in_tail
+          then
+            ScmApplicTP'(run func false, List.map (fun x -> run x false) exprs)
+          else
+            ScmApplic'(run func false, List.map (fun x -> run x false) exprs)
+      | ScmApplicTP'(func, exprs) -> ScmApplicTP'(func, exprs)
     in 
     run pe false;;
 

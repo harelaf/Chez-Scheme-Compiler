@@ -39,6 +39,25 @@ expected =
       ScmLambdaSimple' (["y"],
        ScmSet' (VarBound ("x", 0, 0), ScmVar' (VarParam ("y", 0))))]))};
 
+Expr'Case {name = "TP annotation: example from the slides"; test = Semantic_Analysis.annotate_tail_calls;
+input =
+  ScmLambdaSimple' (["a"],
+ ScmApplic' (ScmVar' (VarParam ("a", 0)),
+  [ScmApplic' (ScmVar' (VarParam ("a", 0)),
+    [ScmLambdaSimple' (["b"],
+      ScmApplic' (ScmVar' (VarParam ("b", 0)),
+       [ScmApplic' (ScmVar' (VarParam ("b", 0)),
+         [ScmApplic' (ScmVar' (VarBound ("a", 0, 0)), [ScmVar' (VarFree "c")])])]))])]));
+expected =
+   ScmLambdaSimple' (["a"],
+    ScmApplicTP' (ScmVar' (VarParam ("a", 0)),
+      [ScmApplic' (ScmVar' (VarParam ("a", 0)),
+        [ScmLambdaSimple' (["b"],
+          ScmApplicTP' (ScmVar' (VarParam ("b", 0)),
+            [ScmApplic' (ScmVar' (VarParam ("b", 0)),
+            [ScmApplic' (ScmVar' (VarBound ("a", 0, 0)),
+              [ScmVar' (VarFree "c")])])]))])]))};
+
 Expr'Case {name = "box"; test = Semantic_Analysis.box_set;
 input =
    ScmLambdaSimple' (["x"],
