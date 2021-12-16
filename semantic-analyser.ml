@@ -113,7 +113,8 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
         | None -> match (lookup_in_env x env) with
                   | Some(major, minor) -> ScmVar'(VarBound(x, major, minor))
                   | None -> ScmVar'(VarFree(x)))
-      | ScmLambdaSimple(vars, body) -> ScmLambdaSimple'(vars, run body vars env)
+      | ScmLambdaSimple(vars, body) -> ScmLambdaSimple'(vars, run body vars (params :: env))
+      | ScmLambdaOpt(vars, var, body) -> ScmLambdaOpt'(vars, var, run body (vars @ [var]) (params :: env))
       | ScmIf(test, dit, dif) -> ScmIf'(run test params env, run dit params env, run dif params env)
       | ScmSeq(exprs) -> ScmSeq'(List.map (fun x -> run x params env) exprs)
       | ScmSet(variable, value) -> 
@@ -124,8 +125,12 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
                   | None -> ScmSet'(VarFree(string_of_expr variable), run value params env))
       | ScmOr(exprs) -> ScmOr'(List.map (fun x -> run x params env) exprs)
       | ScmApplic(func, exprs) -> ScmApplic'(run func params env, List.map (fun x -> run x params env) exprs)
-      | ScmDef(var, value) -> raise X_not_yet_implemented
-      | ScmLambdaOpt(vars, var, body) -> raise X_not_yet_implemented
+      | ScmDef(variable, value) -> 
+        (match (lookup_in_rib (string_of_expr variable) params) with
+        | Some index -> ScmDef'(VarParam((string_of_expr variable), index), run value params env)
+        | None -> match (lookup_in_env (string_of_expr variable) env) with
+                  | Some(major, minor) -> ScmDef'(VarBound((string_of_expr variable), major, minor), run value params env)
+                  | None -> ScmDef'(VarFree(string_of_expr variable), run value params env))
     in 
     run pe [] [];;
 
@@ -133,16 +138,30 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     match s with
     | [e] -> ([], e)
     | e :: s ->
-       let (rdc, rac) = rdc_rac s
-       in (e :: rdc, rac)
+      let (rdc, rac) = rdc_rac s in 
+      (e :: rdc, rac)
     | _ -> raise X_this_should_not_happen;;
   
   (* run this second! *)
   let annotate_tail_calls pe =
-   let rec run pe in_tail =
-      raise X_not_yet_implemented 
-   in 
-   run pe false;;
+    let rec run pe in_tail =
+      match pe with
+      | ScmConst' x -> ScmConst' x
+      | ScmVar' x -> ScmVar' x
+      | ScmBox' x -> ScmBox' x
+      | ScmBoxGet' x -> ScmBoxGet' x 
+      | ScmBoxSet'(var, expr) -> ScmBoxSet'(var, expr)
+      | ScmIf'(test, dit , dif) -> ScmIf'(run test in_tail, run dit in_tail, run dif in_tail)
+      (* | ScmSeq' of expr' list *)
+      (* | ScmSet' of var' * expr' *)
+      (* | ScmDef' of var' * expr' *)
+      (* | ScmOr' of expr' list *)
+      (* | ScmLambdaSimple' of string list * expr' *)
+      (* | ScmLambdaOpt' of string list * string * expr' *)
+      (* | ScmApplic' of expr' * (expr' list) *)
+      (* | ScmApplicTP' of expr' * (expr' list);; *)
+    in 
+    run pe false;;
 
   (* boxing *)
 
