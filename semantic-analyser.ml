@@ -104,10 +104,30 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
 
   (* run this first! *)
   let annotate_lexical_addresses pe = 
-   let rec run pe params env =
-      raise X_not_yet_implemented 
-   in 
-   run pe [] [];;
+    let rec run pe params env =
+      match pe with
+      | ScmConst x -> ScmConst' x
+      | ScmVar x ->  
+        (match (lookup_in_rib x params) with
+        | Some index -> ScmVar'(VarParam(x, index))
+        | None -> match (lookup_in_env x env) with
+                  | Some(major, minor) -> ScmVar'(VarBound(x, major, minor))
+                  | None -> ScmVar'(VarFree(x)))
+      | ScmLambdaSimple(vars, body) -> ScmLambdaSimple'(vars, run body vars env)
+      | ScmIf(test, dit, dif) -> ScmIf'(run test params env, run dit params env, run dif params env)
+      | ScmSeq(exprs) -> ScmSeq'(List.map (fun x -> run x params env) exprs)
+      | ScmSet(variable, value) -> 
+        (match (lookup_in_rib (string_of_expr variable) params) with
+        | Some index -> ScmSet'(VarParam((string_of_expr variable), index), run value params env)
+        | None -> match (lookup_in_env (string_of_expr variable) env) with
+                  | Some(major, minor) -> ScmSet'(VarBound((string_of_expr variable), major, minor), run value params env)
+                  | None -> ScmSet'(VarFree(string_of_expr variable), run value params env))
+      | ScmOr(exprs) -> ScmOr'(List.map (fun x -> run x params env) exprs)
+      | ScmApplic(func, exprs) -> ScmApplic'(run func params env, List.map (fun x -> run x params env) exprs)
+      | ScmDef(var, value) -> raise X_not_yet_implemented
+      | ScmLambdaOpt(vars, var, body) -> raise X_not_yet_implemented
+    in 
+    run pe [] [];;
 
   let rec rdc_rac s =
     match s with
