@@ -172,8 +172,7 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
 
   (* let find_reads name enclosing_lambda expr = raise X_not_yet_implemented  *)
 
-  let rec find_reads_writes name body current_lambda_tree all_reads_ref all_writes_ref =
-    let lambda_index : int ref = ref 0 in 
+  let rec find_reads_writes name body current_lambda_tree lambda_index all_reads_ref all_writes_ref =
     match body with
     | ScmConst' x -> ()
     | ScmVar'(VarFree(x)) -> ()
@@ -183,30 +182,32 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     | ScmVar'(VarBound(x, _, _)) -> ()
     | ScmBox' x -> ()
     | ScmBoxGet' x -> ()
-    | ScmBoxSet'(var, expr) -> (find_reads_writes name expr current_lambda_tree all_reads_ref all_writes_ref); ()
-    | ScmIf'(test, dit , dif) -> (find_reads_writes name test current_lambda_tree all_reads_ref all_writes_ref);
-                                 (find_reads_writes name dit current_lambda_tree all_reads_ref all_writes_ref);
-                                 (find_reads_writes name dif current_lambda_tree all_reads_ref all_writes_ref); ()
-    | ScmSeq'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree all_reads_ref all_writes_ref) exprs) in ()
+    | ScmBoxSet'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
+    | ScmIf'(test, dit , dif) -> (find_reads_writes name test current_lambda_tree lambda_index all_reads_ref all_writes_ref);
+                                 (find_reads_writes name dit current_lambda_tree lambda_index all_reads_ref all_writes_ref);
+                                 (find_reads_writes name dif current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
+    | ScmSeq'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
     | ScmSet'(VarParam(x, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]); ()
     | ScmSet'(VarBound(x, _, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]); ()
-    | ScmSet'(var, expr) -> (find_reads_writes name expr current_lambda_tree all_reads_ref all_writes_ref); ()
-    | ScmDef'(var, expr) -> (find_reads_writes name expr current_lambda_tree all_reads_ref all_writes_ref); ()
-    | ScmOr'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree all_reads_ref all_writes_ref) exprs) in ()
+    | ScmSet'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
+    | ScmDef'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
+    | ScmOr'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
     | ScmLambdaSimple'(vars, body_lambda) -> if (List.mem name vars)
                                         then ()
                                         else 
-                                          (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) all_reads_ref all_writes_ref);
+                                          let new_lambda_index : int ref = ref 0 in 
+                                          (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref);
                                           (lambda_index := !lambda_index + 1); ()
     | ScmLambdaOpt'(vars, var, body_lambda) -> if (List.mem name (vars @ [var]))
                                           then ()
                                           else
-                                            (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) all_reads_ref all_writes_ref);
+                                            let new_lambda_index : int ref = ref 0 in 
+                                            (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref);
                                             (lambda_index := !lambda_index + 1); ()
-    | ScmApplic'(func, exprs) -> (find_reads_writes name func current_lambda_tree all_reads_ref all_writes_ref);
-                                 let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree all_reads_ref all_writes_ref) exprs) in ()
-    | ScmApplicTP'(func, exprs) -> (find_reads_writes name func current_lambda_tree all_reads_ref all_writes_ref);
-                                   let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree all_reads_ref all_writes_ref) exprs) in ()
+    | ScmApplic'(func, exprs) -> (find_reads_writes name func current_lambda_tree lambda_index all_reads_ref all_writes_ref);
+                                 let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
+    | ScmApplicTP'(func, exprs) -> (find_reads_writes name func current_lambda_tree lambda_index all_reads_ref all_writes_ref);
+                                   let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
 (* 
   let rec return_boxed_body params body = 
     let all_reads : int list list ref = ref [] in
