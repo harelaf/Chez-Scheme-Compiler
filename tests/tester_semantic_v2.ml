@@ -8,17 +8,54 @@ let cases = [
 
 
 
+{input = ScmConst    (ScmPair      (ScmPair (ScmSymbol "lambda",        ScmPair (ScmNil,         ScmPair          (ScmPair (ScmSymbol "lambda",            ScmPair (ScmPair (ScmSymbol "x", ScmNil),             ScmPair (ScmSymbol "x",              ScmPair               (ScmPair (ScmSymbol "lambda",                 ScmPair (ScmNil,                  ScmPair                   (ScmPair (ScmSymbol "set!",                     ScmPair (ScmSymbol "x", ScmPair (ScmNumber (ScmRational(29,1)), ScmNil))),                   ScmNil))),               ScmNil)))),          ScmNil))),      ScmNil)); expected = ScmConst'   (ScmPair     (ScmPair (ScmSymbol "lambda",       ScmPair (ScmNil,        ScmPair         (ScmPair (ScmSymbol "lambda",           ScmPair (ScmPair (ScmSymbol "x", ScmNil),            ScmPair (ScmSymbol "x",             ScmPair              (ScmPair (ScmSymbol "lambda",                ScmPair (ScmNil,                 ScmPair                  (ScmPair (ScmSymbol "set!",                    ScmPair (ScmSymbol "x", ScmPair (ScmNumber (ScmRational(29,1)), ScmNil))),                  ScmNil))),              ScmNil)))),         ScmNil))),     ScmNil));name = "RON_Test_Converted 2"};
+
+{input = ScmApplic  (ScmLambdaSimple (["x"],    ScmIf (ScmApplic (ScmVar "x", [ScmConst (ScmNumber (ScmRational(88,1)))]),     ScmApplic (ScmVar "x", [ScmConst (ScmNumber (ScmRational(88,1)))]),     ScmApplic      (ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(88,1))))),      [ScmConst (ScmNumber (ScmRational(88,1)))]))),  [ScmLambdaSimple (["x"], ScmVar "x")]); expected = ScmApplic'  (ScmLambdaSimple'  (["x"],   ScmIf'     (ScmApplic'  (ScmVar'  (VarParam ("x", 0)), [ScmConst'  (ScmNumber (ScmRational(88,1)))]),    ScmApplicTP'  (ScmVar'  (VarParam ("x", 0)), [ScmConst'  (ScmNumber (ScmRational(88,1)))]),    ScmApplicTP'      (ScmLambdaSimple'  (["x"],       ScmSet'  (VarParam ("x", 0), ScmConst'  (ScmNumber (ScmRational(88,1))))),     [ScmConst'  (ScmNumber (ScmRational(88,1)))]))), [ScmLambdaSimple'  (["x"], ScmVar'  (VarParam ("x", 0)))]);name = "RON_Test_Converted 3"};
+
+
+
+
+{input = ScmLambdaSimple (["x"],  ScmOr   [ScmApplic     (ScmLambdaOpt (["y"], "z",       ScmApplic        (ScmLambdaSimple ([],          ScmApplic (ScmLambdaSimple ([], ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "z"])), [])),        [])),     [ScmVar "x"; ScmConst (ScmNumber (ScmRational(98,1)))]);    ScmLambdaSimple ([], ScmSet (ScmVar "x", ScmVar "w")); ScmApplic (ScmVar "w", [ScmVar "w"])]); expected = ScmLambdaSimple'  (["x"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmOr'     [ScmApplic'       (ScmLambdaOpt'  (["y"], "z",        ScmApplicTP'          (ScmLambdaSimple'  ([],           ScmApplicTP'             (ScmLambdaSimple'  ([],              ScmApplicTP'  (ScmVar'  (VarFree "+"),               [ScmBoxGet'  (VarBound ("x", 2, 0)); ScmVar'  (VarBound ("z", 1, 1))])),            [])),         [])),      [ScmBoxGet'  (VarParam ("x", 0)); ScmConst'  (ScmNumber (ScmRational(98,1)))]);     ScmLambdaSimple'  ([], ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarFree "w")));     ScmApplicTP'  (ScmVar'  (VarFree "w"), [ScmVar'  (VarFree "w")])]]);name = "RON_Test_Converted 4"};
+
+{input = ScmIf (ScmApplic (ScmLambdaSimple (["y"], ScmVar "x"), []),  ScmApplic   (ScmLambdaSimple (["x"],     ScmSeq      [ScmSet (ScmVar "x", ScmVar "y");       ScmLambdaSimple ([], ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(47,1)))))]),   [ScmConst (ScmSymbol "a")]),  ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmVar "y"))); expected = ScmIf'  (ScmApplic'  (ScmLambdaSimple'  (["y"], ScmVar'  (VarFree "x")), []), ScmApplic'   (ScmLambdaSimple'  (["x"],    ScmSeq'      [ScmSet'  (VarParam ("x", 0), ScmVar'  (VarFree "y"));      ScmLambdaSimple'  ([],       ScmSet'  (VarBound ("x", 0, 0), ScmConst'  (ScmNumber (ScmRational(47,1)))))]),  [ScmConst'  (ScmSymbol "a")]), ScmLambdaSimple'  (["x"], ScmSet'  (VarParam ("x", 0), ScmVar'  (VarFree "y"))));name = "RON_Test_Converted 5"};
+
+{input = ScmLambdaOpt (["x"; "y"; "z"], "w",  ScmSeq   [ScmVar "z";    ScmApplic     (ScmLambdaSimple ([],       ScmSeq [ScmSet (ScmVar "w", ScmVar "w"); ScmApplic (ScmApplic (ScmVar "y", [ScmVar "x"]), [])]),     [])]); 
+expected = ScmLambdaOpt'  (["x"; "y"; "z"], "w", ScmSeq'   [ScmVar'  (VarParam ("z", 2));   ScmApplicTP'     (ScmLambdaSimple'  ([],      ScmSeq'        [ScmSet'  (VarBound ("w", 0, 3), ScmVar'  (VarBound ("w", 0, 3)));        ScmApplicTP'          (ScmApplic'  (ScmVar'  (VarBound ("y", 0, 1)),           [ScmVar'  (VarBound ("x", 0, 0))]),         [])]),    [])]);name = "RON_Test_Converted 6"};
+
+
+{input = ScmDef (ScmVar "a",  ScmApplic   (ScmLambdaSimple ([],     ScmLambdaOpt ([], "x",      ScmSeq       [ScmVar "x";        ScmLambdaOpt ([], "y", ScmSet (ScmVar "y", ScmConst (ScmNumber (ScmRational(53,1)))))])),   [])); 
+expected = ScmDef'  (VarFree "a", ScmApplic'   (ScmLambdaSimple'  ([],    ScmLambdaOpt'  ([], "x",     ScmSeq'       [ScmVar'  (VarParam ("x", 0));       ScmLambdaOpt'  ([], "y",        ScmSet'  (VarParam ("y", 0), ScmConst'  (ScmNumber (ScmRational(53,1)))))])),  []));name = "RON_Test_Converted 7"};
+
+{input = ScmLambdaSimple (["x"; "y"],  ScmSeq   [ScmApplic (ScmVar "x", [ScmVar "y"]);    ScmLambdaSimple ([],     ScmLambdaSimple ([],      ScmLambdaSimple ([],       ScmSet (ScmVar "x",        ScmApplic (ScmLambdaSimple (["z"], ScmSet (ScmVar "y", ScmVar "x")), [ScmVar "y"])))))]); expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSet'  (VarParam ("y", 1), ScmBox'  (VarParam ("y", 1)));   ScmSeq'     [ScmApplic'  (ScmBoxGet'  (VarParam ("x", 0)), [ScmBoxGet'  (VarParam ("y", 1))]);     ScmLambdaSimple'  ([],      ScmLambdaSimple'  ([],       ScmLambdaSimple'  ([],        ScmBoxSet'  (VarBound ("x", 2, 0),         ScmApplic'           (ScmLambdaSimple'  (["z"],            ScmBoxSet'  (VarBound ("y", 3, 1), ScmBoxGet'  (VarBound ("x", 3, 0)))),          [ScmBoxGet'  (VarBound ("y", 2, 1))])))))]]);name = "RON_Test_Converted 8"};
+
+
+
+
+
+
+
+
+
 {input = ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmApplic (ScmLambdaSimple ([], ScmVar "x"), [])));
 expected = 
 
 ScmLambdaSimple'  (["x"], ScmSeq'   [ScmSet'    (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmBoxSet'  (VarParam ("x", 0),    ScmApplic'  (ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0))), []))]);
 name = "RON_Test_Converted 11"};
 
-{input = ScmConst      (ScmPair      (ScmPair (ScmSymbol "lambda",        ScmPair (ScmNil,         ScmPair          (ScmPair (ScmSymbol "lambda",            ScmPair (ScmPair (ScmSymbol "x", ScmNil),             ScmPair (ScmSymbol "x",              ScmPair               (ScmPair (ScmSymbol "lambda",                 ScmPair (ScmNil,                  ScmPair                   (ScmPair (ScmSymbol "set!",                     ScmPair (ScmSymbol "x", ScmPair (ScmNumber (ScmRational(94,1)), ScmNil))),                   ScmNil))),               ScmNil)))),          ScmNil))),      ScmNil)); expected = ScmConst'   (ScmPair     (ScmPair (ScmSymbol "lambda",       ScmPair (ScmNil,        ScmPair         (ScmPair (ScmSymbol "lambda",           ScmPair (ScmPair (ScmSymbol "x", ScmNil),            ScmPair (ScmSymbol "x",             ScmPair              (ScmPair (ScmSymbol "lambda",                ScmPair (ScmNil,                 ScmPair                  (ScmPair (ScmSymbol "set!",                    ScmPair (ScmSymbol "x", ScmPair (ScmNumber (ScmRational(94,1)), ScmNil))),                  ScmNil))),              ScmNil)))),         ScmNil))),     ScmNil));name = "RON_Test_Converted 2"};
 
 
-{input = ScmApplic  (ScmLambdaSimple (["x"],    ScmIf (ScmApplic (ScmVar "x", [ScmConst (ScmNumber (ScmRational(88,1)))]),     ScmApplic (ScmVar "x", [ScmConst (ScmNumber (ScmRational(88,1)))]),     ScmApplic      (ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(88,1))))),      [ScmConst (ScmNumber (ScmRational(88,1)))]))),  [ScmLambdaSimple (["x"], ScmVar "x")]); 
-expected = ScmApplic'  (ScmLambdaSimple'  (["x"],   ScmIf'     (ScmApplic'  (ScmVar'  (VarParam ("x", 0)), [ScmConst'  (ScmNumber (ScmRational(88,1)))]),    ScmApplicTP'  (ScmVar'  (VarParam ("x", 0)), [ScmConst'  (ScmNumber (ScmRational(88,1)))]),    ScmApplicTP'      (ScmLambdaSimple'  (["x"],       ScmSet'  (VarParam ("x", 0), ScmConst'  (ScmNumber (ScmRational(88,1))))),     [ScmConst'  (ScmNumber (ScmRational(88,1)))]))), [ScmLambdaSimple'  (["x"], ScmVar'  (VarParam ("x", 0)))]);name = "RON_Test_Converted 3"};
+{input = ScmLambdaSimple (["x"; "y"; "z"],  ScmSeq   [ScmLambdaSimple (["y"],     ScmSeq      [ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(81,1))));       ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "y"])]);    ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "y"; ScmVar "z"])]); 
+
+
+expected = ScmLambdaSimple'  (["x"; "y"; "z"], 
+  ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSeq'     [ScmLambdaSimple'  (["y"],      ScmSeq'        [ScmBoxSet'  (VarBound ("x", 0, 0), ScmConst'  (ScmNumber (ScmRational(81,1))));        ScmApplicTP'  (ScmVar'  (VarFree "+"),         [ScmBoxGet'  (VarBound ("x", 0, 0)); ScmVar'  (VarParam ("y", 0))])]);     ScmApplicTP'  (ScmVar'  (VarFree "+"),      [ScmBoxGet'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));       ScmVar'  (VarParam ("z", 2))])]]);name = "RON_Test_Converted 10"};
+
+
+
+{input = ScmLambdaSimple (["x"; "y"],  ScmSeq   [ScmLambdaSimple ([], ScmSet (ScmVar "x", ScmVar "y"));    ScmLambdaSimple ([], ScmSet (ScmVar "y", ScmVar "x"))]); expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSet'  (VarParam ("y", 1), ScmBox'  (VarParam ("y", 1)));   ScmSeq'     [ScmLambdaSimple'  ([],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmBoxGet'  (VarBound ("y", 0, 1))));     ScmLambdaSimple'  ([],      ScmBoxSet'  (VarBound ("y", 0, 1), ScmBoxGet'  (VarBound ("x", 0, 0))))]]);name = "RON_Test_Converted 14"};
+
+{input = ScmLambdaOpt ([], "x",  ScmSeq   [ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(91,1)))));    ScmApplic (ScmVar "car", [ScmVar "x"])]); expected = ScmLambdaOpt'  ([], "x", ScmSeq'   [ScmLambdaSimple'  (["x"],    ScmSet'  (VarParam ("x", 0), ScmConst'  (ScmNumber (ScmRational(91,1)))));   ScmApplicTP'  (ScmVar'  (VarFree "car"), [ScmVar'  (VarParam ("x", 0))])]);name = "RON_Test_Converted 15"};
+
 
 
 {input = ScmLambdaSimple ([],  ScmSeq   [ScmApplic (ScmLambdaSimple ([], ScmVar "x"), []);    ScmApplic     (ScmLambdaSimple (["x"],       ScmSeq        [ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(104,1))));         ScmLambdaSimple ([], ScmVar "x")]),     [ScmConst (ScmNumber (ScmRational(104,1)))]);    ScmApplic (ScmLambdaOpt ([], "x", ScmVar "x"), [ScmConst (ScmNumber (ScmRational(104,1)))])]); 
@@ -46,12 +83,45 @@ expected = ScmLambdaSimple'
 {input = ScmLambdaSimple ([],  ScmIf (ScmVar "x", ScmApplic (ScmVar "x", []), ScmApplic (ScmVar "not", [ScmVar "x"]))); expected = ScmLambdaSimple'  ([], ScmIf'  (ScmVar'  (VarFree "x"), ScmApplicTP'  (ScmVar'  (VarFree "x"), []),  ScmApplicTP'  (ScmVar'  (VarFree "not"), [ScmVar'  (VarFree "x")])));name = "RON_Test_Converted 17"};
 
 
+
+{input = ScmLambdaSimple (["a"; "b"; "c"; "d"; "e"],  ScmApplic (ScmVar "a",   [ScmApplic (ScmVar "b", [ScmVar "c"]); ScmApplic (ScmVar "c", [ScmVar "b"; ScmVar "d"]);    ScmApplic (ScmVar "a",     [ScmApplic (ScmVar "b", [ScmApplic (ScmVar "c", [ScmApplic (ScmVar "d", [ScmVar "e"])])])])])); 
+
+expected = ScmLambdaSimple'  (["a"; "b"; "c"; "d"; "e"], ScmApplicTP'  (ScmVar'  (VarParam ("a", 0)),  [ScmApplic'  (ScmVar'  (VarParam ("b", 1)), [ScmVar'  (VarParam ("c", 2))]);   ScmApplic'  (ScmVar'  (VarParam ("c", 2)),    [ScmVar'  (VarParam ("b", 1)); ScmVar'  (VarParam ("d", 3))]);   ScmApplic'  (ScmVar'  (VarParam ("a", 0)),    [ScmApplic'  (ScmVar'  (VarParam ("b", 1)),      [ScmApplic'  (ScmVar'  (VarParam ("c", 2)),        [ScmApplic'  (ScmVar'  (VarParam ("d", 3)), [ScmVar'  (VarParam ("e", 4))])])])])]));name = "RON_Test_Converted 18"};
+
+
+
+
+{input = ScmLambdaSimple (["x"],  ScmApplic   (ScmLambdaSimple (["y"],     ScmSeq [ScmSet (ScmVar "x", ScmApplic (ScmVar "y", [])); ScmConst (ScmNumber (ScmRational(50,1)))]),   []));
+ expected = ScmLambdaSimple'  (["x"], ScmApplicTP'   (ScmLambdaSimple'  (["y"],    ScmSeq'      [ScmSet'  (VarBound ("x", 0, 0),       ScmApplic'  (ScmVar'  (VarParam ("y", 0)), []));      ScmConst'  (ScmNumber (ScmRational(50,1)))]),  []));name = "RON_Test_Converted 20"};
+
+
 {input = ScmConst(ScmVoid); expected =  ScmConst'  ScmVoid;name = "RON_Test_Converted 21"};
 
 
 {input = ScmLambdaSimple (["x"],  ScmSeq [ScmApplic (ScmVar "x", []); ScmSet (ScmVar "x", ScmApplic (ScmVar "x", []))]); expected = ScmLambdaSimple'  (["x"], ScmSeq'   [ScmApplic'  (ScmVar'  (VarParam ("x", 0)), []);   ScmSet'  (VarParam ("x", 0), ScmApplic'  (ScmVar'  (VarParam ("x", 0)), []))]);name = "RON_Test_Converted 19"};
 
-{input = ScmLambdaSimple (["x"],  ScmApplic   (ScmLambdaSimple (["y"],     ScmSeq [ScmSet (ScmVar "x", ScmApplic (ScmVar "y", [])); ScmConst (ScmNumber (ScmRational(50,1)))]),   [])); expected = ScmLambdaSimple'  (["x"], ScmApplicTP'   (ScmLambdaSimple'  (["y"],    ScmSeq'      [ScmSet'  (VarBound ("x", 0, 0),       ScmApplic'  (ScmVar'  (VarParam ("y", 0)), []));      ScmConst'  (ScmNumber (ScmRational(50,1)))]),  []));name = "RON_Test_Converted 20"};
+
+
+
+{input = ScmLambdaSimple (["x"],  ScmSeq   [ScmVar "x";    ScmLambdaSimple (["x"],     ScmSeq      [ScmSet (ScmVar "x", ScmConst (ScmNumber (ScmRational(25,1))));       ScmLambdaSimple ([], ScmVar "x")]);    ScmLambdaSimple ([], ScmSet (ScmVar "x", ScmVar "x"))]);
+ expected = ScmLambdaSimple'  (["x"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSeq'     [ScmBoxGet'  (VarParam ("x", 0));     ScmLambdaSimple'  (["x"],      ScmSeq'        [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));        ScmSeq'          [ScmBoxSet'  (VarParam ("x", 0), ScmConst'  (ScmNumber (ScmRational(25,1))));          ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0)))]]);     ScmLambdaSimple'  ([],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmBoxGet'  (VarBound ("x", 0, 0))))]]);name = "RON_Test_Converted 22"};
+
+{input = ScmLambdaSimple (["x"],  ScmSeq   [ScmVar "x";    ScmLambdaSimple (["x"],     ScmSeq      [ScmSet (ScmVar "y", ScmVar "x");       ScmLambdaSimple ([], ScmVar "x")]);    ScmLambdaSimple ([], ScmSet (ScmVar "x", ScmVar "x"))]); 
+expected = ScmLambdaSimple'  (["x"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSeq'     [ScmBoxGet'  (VarParam ("x", 0));     ScmLambdaSimple'  (["x"],      ScmSeq'        [ScmSet'  (VarFree "y", ScmVar'  (VarParam ("x", 0)));        ScmLambdaSimple'  ([], ScmVar'  (VarBound ("x", 0, 0)))]);     ScmLambdaSimple'  ([],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmBoxGet'  (VarBound ("x", 0, 0))))]]);name = "RON_Test_Converted 23"};
+
+
+
+{input = ScmLambdaSimple (["x"], ScmApplic (ScmVar "f",  [ScmLambdaSimple (["y"], ScmApplic (ScmVar "g", [ScmVar "x"; ScmVar "y"]))])); expected = ScmLambdaSimple'  (["x"], ScmApplicTP'  (ScmVar'  (VarFree "f"),  [ScmLambdaSimple'  (["y"],    ScmApplicTP'  (ScmVar'  (VarFree "g"),     [ScmVar'  (VarBound ("x", 0, 0)); ScmVar'  (VarParam ("y", 0))]))]));name = "RON_Test_Converted 25"};
+
+{input = ScmLambdaSimple (["x"; "y"; "z"; "w"], ScmIf (ScmApplic (ScmVar "even?", [ScmVar "x"]), ScmApplic (ScmVar "y", [ScmVar "w"]),  ScmApplic (ScmVar "z", [ScmVar "w"])));
+ expected = ScmLambdaSimple'  (["x"; "y"; "z"; "w"], ScmIf'  (ScmApplic'  (ScmVar'  (VarFree "even?"), [ScmVar'  (VarParam ("x", 0))]),  ScmApplicTP'  (ScmVar'  (VarParam ("y", 1)), [ScmVar'  (VarParam ("w", 3))]),  ScmApplicTP'  (ScmVar'  (VarParam ("z", 2)), [ScmVar'  (VarParam ("w", 3))])));name = "RON_Test_Converted 26"};
+
+{input = ScmLambdaSimple (["x"; "y"; "z"], ScmApplic (ScmVar "f",  [ScmIf (ScmApplic (ScmVar "odd?", [ScmVar "x"]), ScmApplic (ScmVar "h", [ScmVar "y"]),    ScmApplic (ScmVar "w", [ScmVar "z"]))])); 
+expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'  (ScmVar'  (VarFree "f"),  [ScmIf'  (ScmApplic'  (ScmVar'  (VarFree "odd?"), [ScmVar'  (VarParam ("x", 0))]),    ScmApplic'  (ScmVar'  (VarFree "h"), [ScmVar'  (VarParam ("y", 1))]),    ScmApplic'  (ScmVar'  (VarFree "w"), [ScmVar'  (VarParam ("z", 2))]))]));name = "RON_Test_Converted 27"};
+
+
+
+{input = ScmLambdaSimple (["a"; "b"], ScmSeq  [ScmApplic (ScmVar "f", [ScmVar "a"]); ScmApplic (ScmVar "g", [ScmVar "a"; ScmVar "b"]);   ScmApplic (ScmVar "display", [ScmConst (ScmString "done!")])]); expected = ScmLambdaSimple'  (["a"; "b"], ScmSeq'   [ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarParam ("a", 0))]);   ScmApplic'  (ScmVar'  (VarFree "g"),    [ScmVar'  (VarParam ("a", 0)); ScmVar'  (VarParam ("b", 1))]);   ScmApplicTP'  (ScmVar'  (VarFree "display"), [ScmConst'  (ScmString "done!")])]);name = "RON_Test_Converted 28"};
 
 
 
@@ -59,9 +129,20 @@ expected = ScmLambdaSimple'
 
 
 
+{input = ScmLambdaSimple (["x"; "y"], ScmOr [ScmApplic (ScmVar "f", [ScmApplic (ScmVar "g", [ScmVar "x"])]); ScmVar "y"]); expected = ScmLambdaSimple'  (["x"; "y"], ScmOr'   [ScmApplic'  (ScmVar'  (VarFree "f"),    [ScmApplic'  (ScmVar'  (VarFree "g"), [ScmVar'  (VarParam ("x", 0))])]);   ScmVar'  (VarParam ("y", 1))]);name = "RON_Test_Converted 30"};
+
+
 {input = ScmLambdaSimple (["x"], ScmSet (ScmVar "x", ScmApplic (ScmVar "f", [ScmVar "y"]))); expected = ScmLambdaSimple'  (["x"], ScmSet'  (VarParam ("x", 0),  ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarFree "y")])));name = "RON_Test_Converted 31"};
 
 {input = ScmLambdaSimple ([], ScmSet (ScmVar "x",  ScmApplic (ScmVar "f",   [ScmLambdaSimple (["y"], ScmApplic (ScmVar "g", [ScmVar "x"; ScmVar "y"]))]))); expected = ScmLambdaSimple'  ([], ScmSet'  (VarFree "x",  ScmApplic'  (ScmVar'  (VarFree "f"),   [ScmLambdaSimple'  (["y"],     ScmApplicTP'  (ScmVar'  (VarFree "g"),      [ScmVar'  (VarFree "x"); ScmVar'  (VarParam ("y", 0))]))])));name = "RON_Test_Converted 32"};
+
+
+
+
+{input = ScmLambdaSimple (["x"; "y"; "z"], ScmIf (ScmApplic (ScmVar "f?", [ScmVar "x"]), ScmApplic (ScmVar "g", [ScmVar "y"]),  ScmIf (ScmApplic (ScmVar "g?", [ScmVar "x"]),   ScmSeq [ScmApplic (ScmVar "f", [ScmVar "x"]); ScmApplic (ScmVar "f", [ScmVar "y"])],   ScmSeq    [ScmApplic (ScmVar "h", [ScmVar "x"]); ScmApplic (ScmVar "f", [ScmVar "y"]);     ScmApplic (ScmVar "g", [ScmApplic (ScmVar "f", [ScmVar "x"])])]))); expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmIf'  (ScmApplic'  (ScmVar'  (VarFree "f?"), [ScmVar'  (VarParam ("x", 0))]),  ScmApplicTP'  (ScmVar'  (VarFree "g"), [ScmVar'  (VarParam ("y", 1))]),  ScmIf'  (ScmApplic'  (ScmVar'  (VarFree "g?"), [ScmVar'  (VarParam ("x", 0))]),   ScmSeq'     [ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarParam ("x", 0))]);     ScmApplicTP'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarParam ("y", 1))])],   ScmSeq'     [ScmApplic'  (ScmVar'  (VarFree "h"), [ScmVar'  (VarParam ("x", 0))]);     ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarParam ("y", 1))]);     ScmApplicTP'  (ScmVar'  (VarFree "g"),      [ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarParam ("x", 0))])])])));name = "RON_Test_Converted 33"};
+
+{input = ScmApplic (ScmLambdaSimple (["x"; "y"], ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "y"])), [ScmApplic (ScmVar "f", [ScmVar "y"]); ScmApplic (ScmVar "g", [ScmVar "x"])]); 
+expected = ScmApplic'  (ScmLambdaSimple'  (["x"; "y"],   ScmApplicTP'  (ScmVar'  (VarFree "+"),    [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1))])), [ScmApplic'  (ScmVar'  (VarFree "f"), [ScmVar'  (VarFree "y")]);  ScmApplic'  (ScmVar'  (VarFree "g"), [ScmVar'  (VarFree "x")])]);name = "RON_Test_Converted 34"};
 
 
 {input = ScmLambdaSimple (["x"], ScmApplic (ScmVar "list",  [ScmLambdaSimple ([], ScmVar "x"); ScmLambdaSimple (["y"], ScmSet (ScmVar "x", ScmVar "y"))]));
@@ -75,7 +156,25 @@ expected = ScmLambdaSimple'
 {input = ScmLambdaSimple (["x"; "y"; "z"], ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+", [ScmVar "z"; ScmVar "x"; ScmConst (ScmNumber (ScmRational(41,1)))]))])); expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarParam ("z", 0)); ScmVar'  (VarBound ("x", 0, 0));      ScmConst'  (ScmNumber (ScmRational(41,1)))]))]));name = "RON_Test_Converted 37"};
 
 
+{input = ScmLambdaSimple (["x"; "y"; "z"], ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+", [ScmVar "z"; ScmConst (ScmNumber (ScmRational(20,1)))]))])); expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarParam ("z", 0)); ScmConst'  (ScmNumber (ScmRational(20,1)))]))]));name = "RON_Test_Converted 38"};
+
+{input = ScmLambdaOpt (["x"; "y"], "z", ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+",     [ScmVar "z"; ScmLambdaSimple (["z"], ScmApplic (ScmVar "+", [ScmVar "z"; ScmVar "y"]))]))])); 
+expected = ScmLambdaOpt'  (["x"; "y"], "z", ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarParam ("z", 0));      ScmLambdaSimple'  (["z"],       ScmApplicTP'  (ScmVar'  (VarFree "+"),        [ScmVar'  (VarParam ("z", 0)); ScmVar'  (VarBound ("y", 1, 1))]))]))]));name = "RON_Test_Converted 39"};
+
+
+
 {input = ScmLambdaSimple (["x"; "y"; "z"], ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+",     [ScmVar "z";      ScmLambdaSimple (["x"], ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "y"; ScmVar "z"]))]))])); expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarParam ("z", 0));      ScmLambdaSimple'  (["x"],       ScmApplicTP'  (ScmVar'  (VarFree "+"),        [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarBound ("y", 1, 1));         ScmVar'  (VarBound ("z", 0, 0))]))]))]));name = "RON_Test_Converted 40"};
+
+
+
+
+{input = ScmLambdaOpt (["x"; "y"], "z", ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+",     [ScmVar "z"; ScmLambdaSimple ([], ScmApplic (ScmVar "+", [ScmVar "z"; ScmVar "y"]))]))])); 
+expected = ScmLambdaOpt'  (["x"; "y"], "z", ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarParam ("z", 0));      ScmLambdaSimple'  ([],       ScmApplicTP'  (ScmVar'  (VarFree "+"),        [ScmVar'  (VarBound ("z", 0, 0)); ScmVar'  (VarBound ("y", 1, 1))]))]))]));name = "RON_Test_Converted 41"};
+
+{input = ScmLambdaSimple (["x"; "y"; "z"], ScmApplic (ScmVar "+",  [ScmVar "x"; ScmVar "y";   ScmLambdaSimple (["z"],    ScmApplic (ScmVar "+",     [ScmVar "x"; ScmVar "y"; ScmVar "z";      ScmLambdaSimple ([], ScmApplic (ScmVar "+", [ScmVar "x"; ScmVar "y"; ScmVar "z"]))]))]));
+ expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'  (ScmVar'  (VarFree "+"),  [ScmVar'  (VarParam ("x", 0)); ScmVar'  (VarParam ("y", 1));   ScmLambdaSimple'  (["z"],    ScmApplicTP'  (ScmVar'  (VarFree "+"),     [ScmVar'  (VarBound ("x", 0, 0)); ScmVar'  (VarBound ("y", 0, 1));      ScmVar'  (VarParam ("z", 0));      ScmLambdaSimple'  ([],       ScmApplicTP'  (ScmVar'  (VarFree "+"),        [ScmVar'  (VarBound ("x", 1, 0)); ScmVar'  (VarBound ("y", 1, 1));         ScmVar'  (VarBound ("z", 0, 0))]))]))]));name = "RON_Test_Converted 42"};
+
+
 
 
 
@@ -133,6 +232,12 @@ expected =
      ScmLambdaSimple'  (["y"],       ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarParam ("y", 0))))])]));
      
      name = "RON_Test_Converted 51"};
+     
+     
+     
+     
+
+{input = ScmLambdaSimple (["x"; "y"], ScmApplic (ScmVar "list",  [ScmLambdaSimple ([], ScmVar "x"); ScmLambdaSimple ([], ScmVar "y");   ScmLambdaSimple (["z"], ScmSet (ScmVar "x", ScmVar "z"))])); expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmApplicTP'  (ScmVar'  (VarFree "list"),    [ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0)));     ScmLambdaSimple'  ([], ScmVar'  (VarBound ("y", 0, 1)));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarParam ("z", 0))))])]);name = "RON_Test_Converted 52"};
 
 
 {input = ScmLambdaSimple (["x"; "y"], ScmApplic (ScmVar "list",  [ScmLambdaSimple ([], ScmVar "x"); ScmLambdaSimple (["z"], ScmSet (ScmVar "y", ScmVar "z"));   ScmLambdaSimple (["z"], ScmSet (ScmVar "x", ScmVar "z"))])); expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmApplicTP'  (ScmVar'  (VarFree "list"),    [ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0)));     ScmLambdaSimple'  (["z"],      ScmSet'  (VarBound ("y", 0, 1), ScmVar'  (VarParam ("z", 0))));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarParam ("z", 0))))])]);name = "RON_Test_Converted 53"};
@@ -146,8 +251,7 @@ expected =
 
 
 
-{input = ScmLambdaSimple (["x"; "y"], ScmApplic (ScmVar "list",  [ScmLambdaSimple ([], ScmVar "x"); ScmLambdaSimple ([], ScmVar "y");   ScmLambdaSimple (["z"], ScmSet (ScmVar "y", ScmVar "z"));   ScmLambdaSimple (["z"], ScmSet (ScmVar "x", ScmVar "z"))])); 
-expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSet'  (VarParam ("y", 1), ScmBox'  (VarParam ("y", 1)));   ScmApplicTP'  (ScmVar'  (VarFree "list"),    [ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0)));     ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("y", 0, 1)));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("y", 0, 1), ScmVar'  (VarParam ("z", 0))));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarParam ("z", 0))))])]);name = "RON_Test_Converted 54"};
+{input = ScmLambdaSimple (["x"; "y"], ScmApplic (ScmVar "list",  [ScmLambdaSimple ([], ScmVar "x"); ScmLambdaSimple ([], ScmVar "y");   ScmLambdaSimple (["z"], ScmSet (ScmVar "y", ScmVar "z"));   ScmLambdaSimple (["z"], ScmSet (ScmVar "x", ScmVar "z"))])); expected = ScmLambdaSimple'  (["x"; "y"], ScmSeq'   [ScmSet'  (VarParam ("x", 0), ScmBox'  (VarParam ("x", 0)));   ScmSet'  (VarParam ("y", 1), ScmBox'  (VarParam ("y", 1)));   ScmApplicTP'  (ScmVar'  (VarFree "list"),    [ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("x", 0, 0)));     ScmLambdaSimple'  ([], ScmBoxGet'  (VarBound ("y", 0, 1)));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("y", 0, 1), ScmVar'  (VarParam ("z", 0))));     ScmLambdaSimple'  (["z"],      ScmBoxSet'  (VarBound ("x", 0, 0), ScmVar'  (VarParam ("z", 0))))])]);name = "RON_Test_Converted 54"};
 
 
 
@@ -221,6 +325,11 @@ expected = ScmApplic'  (ScmLambdaSimple'  (["a"],   ScmApplicTP'     (ScmLambdaS
 
 
 
+{input = ScmDef (ScmVar "while",  ScmLambdaSimple (["test"; "body"],   ScmIf (ScmApplic (ScmVar "test", []),    ScmSeq     [ScmApplic (ScmVar "body", []);      ScmApplic (ScmVar "while", [ScmVar "test"; ScmVar "body"])],    ScmConst ScmVoid))); 
+
+expected = ScmDef'  (VarFree "while", ScmLambdaSimple'  (["test"; "body"],  ScmIf'  (ScmApplic'  (ScmVar'  (VarParam ("test", 0)), []),   ScmSeq'     [ScmApplic'  (ScmVar'  (VarParam ("body", 1)), []);     ScmApplicTP'  (ScmVar'  (VarFree "while"),      [ScmVar'  (VarParam ("test", 0)); ScmVar'  (VarParam ("body", 1))])],   ScmConst'  ScmVoid)));name = "RON_Test_Converted 70"};
+
+
 {input = ScmApplic  (ScmLambdaSimple (["a"],    ScmApplic     (ScmLambdaSimple (["c"],       ScmApplic        (ScmLambdaSimple (["e"],          ScmIf (ScmApplic (ScmVar "x", [ScmVar "u003e"; ScmConst (ScmNumber (ScmRational(115,1)))]),           ScmLambdaSimple (["x"], ScmApplic (ScmVar "a", [ScmVar "x"])),           ScmLambdaSimple (["x"], ScmApplic (ScmVar "c", [ScmVar "x"])))),        [ScmVar "f"])),     [ScmVar "d"])),  [ScmVar "b"]); expected = ScmApplic'  (ScmLambdaSimple'  (["a"],   ScmApplicTP'     (ScmLambdaSimple'  (["c"],      ScmApplicTP'        (ScmLambdaSimple'  (["e"],         ScmIf'           (ScmApplic'  (ScmVar'  (VarFree "x"),            [ScmVar'  (VarFree "u003e"); ScmConst'  (ScmNumber (ScmRational(115,1)))]),          ScmLambdaSimple'  (["x"],           ScmApplicTP'  (ScmVar'  (VarBound ("a", 2, 0)),            [ScmVar'  (VarParam ("x", 0))])),          ScmLambdaSimple'  (["x"],           ScmApplicTP'  (ScmVar'  (VarBound ("c", 1, 0)),            [ScmVar'  (VarParam ("x", 0))])))),       [ScmVar'  (VarFree "f")])),    [ScmVar'  (VarFree "d")])), [ScmVar'  (VarFree "b")]);name = "RON_Test_Converted 71"};
 
 
@@ -253,6 +362,9 @@ expected = ScmSeq'  [ScmLambdaSimple'  (["x"; "y"],   ScmLambdaSimple'  (["y"; "
 
 
 
+{input = ScmLambdaSimple (["x"; "y"; "z"],  ScmApplic   (ScmIf (ScmApplic (ScmVar "x", [ScmVar "y"; ScmVar "z"]),     ScmSeq      [ScmLambdaSimple (["x"; "y"],        ScmLambdaSimple (["y"; "z"], ScmApplic (ScmVar "x", [ScmVar "y"; ScmVar "z"])));       ScmLambdaSimple (["z"], ScmApplic (ScmVar "x", [ScmVar "y"; ScmVar "z"]))],     ScmConst ScmVoid),   [ScmLambdaSimple ([], ScmApplic (ScmVar "x", [ScmVar "y"; ScmVar "z"]))]));
+
+ expected = ScmLambdaSimple'  (["x"; "y"; "z"], ScmApplicTP'   (ScmIf'     (ScmApplic'  (ScmVar'  (VarParam ("x", 0)),      [ScmVar'  (VarParam ("y", 1)); ScmVar'  (VarParam ("z", 2))]),    ScmSeq'      [ScmLambdaSimple'  (["x"; "y"],       ScmLambdaSimple'  (["y"; "z"],        ScmApplicTP'  (ScmVar'  (VarBound ("x", 0, 0)),         [ScmVar'  (VarParam ("y", 0)); ScmVar'  (VarParam ("z", 1))])));      ScmLambdaSimple'  (["z"],       ScmApplicTP'  (ScmVar'  (VarBound ("x", 0, 0)),        [ScmVar'  (VarBound ("y", 0, 1)); ScmVar'  (VarParam ("z", 0))]))],    ScmConst'  ScmVoid),  [ScmLambdaSimple'  ([],    ScmApplicTP'  (ScmVar'  (VarBound ("x", 0, 0)),     [ScmVar'  (VarBound ("y", 0, 1)); ScmVar'  (VarBound ("z", 0, 2))]))]));name = "RON_Test_Converted 76"};
 
 
 {input = ScmLambdaSimple (["x"],  ScmApplic (ScmVar "x",   [ScmLambdaSimple (["y"; "z"],     ScmApplic (ScmVar "x",      [ScmVar "y"; ScmVar "z";       ScmLambdaSimple ([],        ScmApplic (ScmVar "x",         [ScmVar "y"; ScmVar "z";          ScmLambdaSimple (["z"], ScmApplic (ScmVar "x", [ScmVar "y"; ScmVar "z"]))]))]))]));
