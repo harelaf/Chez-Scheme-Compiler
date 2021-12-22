@@ -187,35 +187,112 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
                                  (find_reads_writes name dit current_lambda_tree lambda_index all_reads_ref all_writes_ref);
                                  (find_reads_writes name dif current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
     | ScmSeq'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
-    | ScmSet'(VarParam(x, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]); ()
-    | ScmSet'(VarBound(x, _, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]); ()
+    | ScmSet'(VarParam(x, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]);
+                                                     (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
+    | ScmSet'(VarBound(x, _, _), expr) when x = name -> (all_writes_ref := !all_writes_ref @ [current_lambda_tree]);
+                                                        (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
     | ScmSet'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
     | ScmDef'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
     | ScmOr'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
     | ScmLambdaSimple'(vars, body_lambda) -> if (List.mem name vars)
-                                        then ()
+                                        then () (* MAYBE (lambda_index := !lambda_index + 1); BEFORE *)
                                         else 
                                           let new_lambda_index : int ref = ref 0 in 
-                                          (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref);
-                                          (lambda_index := !lambda_index + 1); ()
+                                          (lambda_index := !lambda_index + 1);
+                                          (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref); ()
     | ScmLambdaOpt'(vars, var, body_lambda) -> if (List.mem name (vars @ [var]))
-                                          then ()
+                                          then () (* MAYBE (lambda_index := !lambda_index + 1); BEFORE *)
                                           else
-                                            let new_lambda_index : int ref = ref 0 in 
-                                            (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref);
-                                            (lambda_index := !lambda_index + 1); ()
+                                            let new_lambda_index : int ref = ref 0 in
+                                            (lambda_index := !lambda_index + 1);
+                                            (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref); ()
     | ScmApplic'(func, exprs) -> (find_reads_writes name func current_lambda_tree lambda_index all_reads_ref all_writes_ref);
                                  let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
     | ScmApplicTP'(func, exprs) -> (find_reads_writes name func current_lambda_tree lambda_index all_reads_ref all_writes_ref);
                                    let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
-(* 
+
+  let rec check_prefix read_val write_val =
+    match read_val, write_val with
+    | [], _ -> false
+    | _, [] -> false
+    | [hd1], [hd2] when hd1 = hd2 -> false
+    | [hd1], [hd2] when not (hd1 = hd2)  -> true
+    | [hd1], hd2 :: tl2 when hd1 = hd2 && hd1 = 0 -> true
+    | [hd1], hd2 :: tl2 when not (hd1 = hd2) -> true
+    | [hd1], hd2 :: tl2 -> false
+    | hd1 :: tl1, [hd2] when hd1 = hd2 && hd1 = 0 -> true
+    | hd1 :: tl1, [hd2] when not (hd1 = hd2) -> true
+    | hd1 :: tl1, [hd2] -> false
+    | hd1 :: tl1, hd2 :: tl2 when hd1 = hd2 && hd1 = 0 -> check_prefix tl1 tl2
+    | hd1 :: tl1, hd2 :: tl2 when not (hd1 = hd2) -> true
+    | hd1 :: tl1, hd2 :: tl2 -> false
+
+  let rec should_i_box reads writes =
+    let mapped = List.map (fun read_val -> List.exists (fun write_val -> check_prefix read_val write_val) !writes) !reads in
+    (List.fold_left (fun var init -> var || init) false mapped)
+
+  let rec box_body name body =
+    match body with
+    | ScmConst' x -> ScmConst' x
+    | ScmVar'(VarFree(x)) -> ScmVar'(VarFree(x))
+    | ScmVar'(VarParam(x, index)) when x = name -> ScmBoxGet'(VarParam(x, index))
+    | ScmVar'(VarParam(x, index)) -> ScmVar'(VarParam(x, index))
+    | ScmVar'(VarBound(x, major, minor)) when x = name -> ScmBoxGet'(VarBound(x, major, minor))
+    | ScmVar'(VarBound(x, major, minor)) -> ScmVar'(VarBound(x, major, minor))
+    | ScmBox' x -> ScmBox' x
+    | ScmBoxGet' x -> ScmBoxGet' x
+    | ScmBoxSet'(var, expr) -> ScmBoxSet'(var, box_body name expr)
+    | ScmIf'(test, dit , dif) -> ScmIf'(box_body name test, box_body name dit , box_body name dif)
+    | ScmSeq'(exprs) -> ScmSeq'(List.map (fun x -> box_body name x) exprs)
+    | ScmSet'(VarParam(x, index), expr) when x = name -> ScmBoxSet'(VarParam(x, index), box_body name expr)
+    | ScmSet'(VarBound(x, major, minor), expr) when x = name -> ScmBoxSet'(VarBound(x, major, minor), box_body name expr)
+    | ScmSet'(var, expr) -> ScmSet'(var, box_body name expr)
+    | ScmDef'(var, expr) -> ScmDef'(var, box_body name expr)
+    | ScmOr'(exprs) -> ScmOr'(List.map (fun x -> box_body name x) exprs)
+    | ScmLambdaSimple'(vars, body_lambda) -> if (List.mem name vars)
+                                        then ScmLambdaSimple'(vars, body_lambda)
+                                        else 
+                                          ScmLambdaSimple'(vars, box_body name body_lambda)
+    | ScmLambdaOpt'(vars, var, body_lambda) -> if (List.mem name (vars @ [var]))
+                                          then ScmLambdaOpt'(vars, var, body_lambda)
+                                        else 
+                                          ScmLambdaOpt'(vars, var, box_body name body_lambda)
+    | ScmApplic'(func, exprs) -> ScmApplic'(box_body name func, List.map (fun x -> box_body name x) exprs)
+    | ScmApplicTP'(func, exprs) -> ScmApplicTP'(box_body name func, List.map (fun x -> box_body name x) exprs)
+
+  let reset reads writes lambda_index =
+    reads := [];
+    writes := [];
+    lambda_index := 0
+
+  let add_to_beginning_of_lambda param body =
+    match body with
+    | ScmSeq'(exprs) -> ScmSeq'((ScmSet'(param, ScmBox'(param))) :: exprs)
+    | other -> ScmSeq'([(ScmSet'(param, ScmBox'(param))); other])
+  
   let rec return_boxed_body params body = 
-    let all_reads : int list list ref = ref [] in
-    let all_writes : int list list ref = ref [] in *)
-    
+    let reads : int list list ref = ref [] in
+    let writes : int list list ref = ref [] in
+    let lambda_index : int ref = ref 0 in
+    let new_body : expr' ref = ref body in
+    let index_in_params : int ref = ref 0 in
+
+    let _ = (List.map (fun param -> (reset reads writes lambda_index);
+                                    (find_reads_writes param !new_body [0] lambda_index reads writes);
+                                    if (should_i_box reads writes)
+                                      then
+                                        (new_body := box_body param !new_body;
+                                        new_body := add_to_beginning_of_lambda (VarParam(param, !index_in_params)) !new_body;
+                                        ())
+                                      else 
+                                        (index_in_params := !index_in_params + 1; 
+                                        ()))
+                      params) in
+
+    !new_body
 
   let rec box_set expr = 
-    (* match pe with
+    match expr with
     | ScmConst' x -> ScmConst' x
     | ScmVar' x -> ScmVar' x
     | ScmBox' x -> ScmBox' x
@@ -226,11 +303,10 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     | ScmSet'(var, expr) -> ScmSet'(var, box_set expr)
     | ScmDef'(var, expr) -> ScmDef'(var, box_set expr)
     | ScmOr'(exprs) -> ScmOr'(List.map (fun x -> box_set x) exprs)
-    | ScmLambdaSimple'(vars, body) -> ScmLambdaSimple'(vars, box_set (return_boxed_body vars body))
-    | ScmLambdaOpt'(vars, var, body) -> ScmLambdaOpt'(vars, var, box_set (return_boxed_body (vars @ [var]) body))
+    | ScmLambdaSimple'(vars, body) -> ScmLambdaSimple'(vars, return_boxed_body vars (box_set body)) (**FIX BOX_SET PLACEMENT YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO *)
+    | ScmLambdaOpt'(vars, var, body) -> ScmLambdaOpt'(vars, var, return_boxed_body (vars @ [var]) (box_set body)) (**FIX BOX_SET PLACEMENT YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO *)
     | ScmApplic'(func, exprs) -> ScmApplic'(box_set func, List.map (fun x -> box_set x) exprs)
-    | ScmApplicTP'(func, exprs) -> ScmApplicTP'(box_set func, List.map (fun x -> box_set x) exprs) *)
-    raise X_not_yet_implemented
+    | ScmApplicTP'(func, exprs) -> ScmApplicTP'(box_set func, List.map (fun x -> box_set x) exprs)
 
   let run_semantics expr =
     box_set
