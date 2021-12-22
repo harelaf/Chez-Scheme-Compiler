@@ -142,6 +142,11 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
       (e :: rdc, rac)
     | _ -> raise X_this_should_not_happen;;
   
+  let rec remove_last_elem = function
+  | [] -> []
+  | hd::[] -> []
+  | hd::tl -> hd::(remove_last_elem tl)
+
   (* run this second! *)
   let annotate_tail_calls pe =
     let rec run pe in_tail =
@@ -151,11 +156,13 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
       | ScmBox' x -> ScmBox' x
       | ScmBoxGet' x -> ScmBoxGet' x 
       | ScmBoxSet'(var, expr) -> ScmBoxSet'(var, expr)
-      | ScmIf'(test, dit , dif) -> ScmIf'(run test false, run dit false, run dif false)
-      | ScmSeq'(exprs) -> ScmSeq'(List.map (fun x -> run x false) exprs)
+      | ScmIf'(test, dit , dif) -> ScmIf'(run test false, run dit in_tail, run dif in_tail)
+      | ScmSeq'(exprs) -> let no_last_elem = remove_last_elem exprs in
+                          ScmSeq'((List.map (fun x -> run x false) no_last_elem) @ [run (List.nth exprs ((List.length exprs) - 1)) in_tail])
       | ScmSet'(var, expr) -> ScmSet'(var, run expr false)
       | ScmDef'(var, expr) -> ScmDef'(var, run expr false)
-      | ScmOr'(exprs) -> ScmOr'(List.map (fun x -> run x false) exprs)
+      | ScmOr'(exprs) -> let no_last_elem = remove_last_elem exprs in
+                         ScmOr'((List.map (fun x -> run x false) no_last_elem) @ [run (List.nth exprs ((List.length exprs) - 1)) in_tail])
       | ScmLambdaSimple'(vars, expr) -> ScmLambdaSimple'(vars, run expr true)
       | ScmLambdaOpt'(vars, var, expr) -> ScmLambdaOpt'(vars, var, run expr true)
       | ScmApplic'(func, exprs) -> 
@@ -169,8 +176,6 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     run pe false;;
 
   (* boxing *)
-
-  (* let find_reads name enclosing_lambda expr = raise X_not_yet_implemented  *)
 
   let rec find_reads_writes name body current_lambda_tree lambda_index all_reads_ref all_writes_ref =
     match body with
@@ -275,7 +280,8 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     let writes : int list list ref = ref [] in
     let lambda_index : int ref = ref 0 in
     let new_body : expr' ref = ref body in
-    let index_in_params : int ref = ref 0 in
+    let index_in_params : int ref = ref ((List.length params) - 1) in
+    let reversed_params = List.rev params in
 
     let _ = (List.map (fun param -> (reset reads writes lambda_index);
                                     (find_reads_writes param !new_body [0] lambda_index reads writes);
@@ -283,11 +289,12 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
                                       then
                                         (new_body := box_body param !new_body;
                                         new_body := add_to_beginning_of_lambda (VarParam(param, !index_in_params)) !new_body;
+                                        index_in_params := !index_in_params - 1;
                                         ())
                                       else 
-                                        (index_in_params := !index_in_params + 1; 
+                                        (index_in_params := !index_in_params - 1; 
                                         ()))
-                      params) in
+                      reversed_params) in
 
     !new_body
 
