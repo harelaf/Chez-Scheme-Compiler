@@ -200,13 +200,13 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     | ScmDef'(var, expr) -> (find_reads_writes name expr current_lambda_tree lambda_index all_reads_ref all_writes_ref); ()
     | ScmOr'(exprs) -> let _ = (List.map (fun x -> find_reads_writes name x current_lambda_tree lambda_index all_reads_ref all_writes_ref) exprs) in ()
     | ScmLambdaSimple'(vars, body_lambda) -> if (List.mem name vars)
-                                        then () (* MAYBE (lambda_index := !lambda_index + 1); BEFORE *)
+                                        then ()
                                         else 
                                           let new_lambda_index : int ref = ref 0 in 
                                           (lambda_index := !lambda_index + 1);
                                           (find_reads_writes name body_lambda (current_lambda_tree @ [!lambda_index]) new_lambda_index all_reads_ref all_writes_ref); ()
     | ScmLambdaOpt'(vars, var, body_lambda) -> if (List.mem name (vars @ [var]))
-                                          then () (* MAYBE (lambda_index := !lambda_index + 1); BEFORE *)
+                                          then ()
                                           else
                                             let new_lambda_index : int ref = ref 0 in
                                             (lambda_index := !lambda_index + 1);
@@ -310,8 +310,8 @@ module Semantic_Analysis : SEMANTIC_ANALYSIS = struct
     | ScmSet'(var, expr) -> ScmSet'(var, box_set expr)
     | ScmDef'(var, expr) -> ScmDef'(var, box_set expr)
     | ScmOr'(exprs) -> ScmOr'(List.map (fun x -> box_set x) exprs)
-    | ScmLambdaSimple'(vars, body) -> ScmLambdaSimple'(vars, return_boxed_body vars (box_set body)) (**FIX BOX_SET PLACEMENT YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO *)
-    | ScmLambdaOpt'(vars, var, body) -> ScmLambdaOpt'(vars, var, return_boxed_body (vars @ [var]) (box_set body)) (**FIX BOX_SET PLACEMENT YOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO *)
+    | ScmLambdaSimple'(vars, body) -> ScmLambdaSimple'(vars, return_boxed_body vars (box_set body))
+    | ScmLambdaOpt'(vars, var, body) -> ScmLambdaOpt'(vars, var, return_boxed_body (vars @ [var]) (box_set body))
     | ScmApplic'(func, exprs) -> ScmApplic'(box_set func, List.map (fun x -> box_set x) exprs)
     | ScmApplicTP'(func, exprs) -> ScmApplicTP'(box_set func, List.map (fun x -> box_set x) exprs)
 
