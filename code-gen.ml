@@ -14,6 +14,31 @@ let rec sexpr_eq s1 s2 =
   | ScmPair(car1, cdr1), ScmPair(car2, cdr2) -> (sexpr_eq car1 car2) && (sexpr_eq cdr1 cdr2)
   | _, _ -> false
 
+let unannotate_lexical_address = function
+| (VarFree name | VarParam (name, _) | VarBound (name, _, _)) -> ScmVar name
+
+let rec unanalyze expr' =
+match expr' with
+  | ScmConst' s -> ScmConst(s)
+  | ScmVar' var -> unannotate_lexical_address var
+  | ScmBox' var -> ScmApplic(ScmVar "box", [unannotate_lexical_address var])
+  | ScmBoxGet' var -> unannotate_lexical_address var
+  | ScmBoxSet' (var, expr') -> ScmSet (unannotate_lexical_address var, unanalyze expr')
+  | ScmIf' (test, dit, dif) -> ScmIf (unanalyze test, unanalyze dit, unanalyze dif)
+  | ScmSeq' expr's -> ScmSeq (List.map unanalyze expr's)
+  | ScmSet' (var, expr') -> ScmSet (unannotate_lexical_address var, unanalyze expr')
+  | ScmDef' (var, expr') -> ScmDef (unannotate_lexical_address var, unanalyze expr')
+  | ScmOr' expr's -> ScmOr (List.map unanalyze expr's)
+  | ScmLambdaSimple' (params, expr') ->
+        ScmLambdaSimple (params, unanalyze expr')
+  | ScmLambdaOpt'(params, param, expr') ->
+        ScmLambdaOpt (params, param, unanalyze expr')
+  | (ScmApplic' (expr', expr's) | ScmApplicTP' (expr', expr's)) ->
+        ScmApplic (unanalyze expr', List.map unanalyze expr's);;
+
+let string_of_expr' expr' =
+    string_of_expr (unanalyze expr');;
+
 (* This module is here for you convenience only!
    You are not required to use it.
    you are allowed to change it. *)
@@ -158,14 +183,14 @@ module Code_Gen : CODE_GEN = struct
   let create_const_offset_assembly_tbl const offset populated_already =
     match const with
     | ScmChar x -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_CHAR(\"%c\")" x))]
-    | ScmString str -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_STRING(\"%s\")" str))]
+    | ScmString str -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_STRING \"%s\"" str))]
     | ScmSymbol str -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_SYMBOL(const_tbl+%d)" (find_offset (ScmString(str)) populated_already)))]
     | ScmNumber(ScmRational(numerator, denominator)) -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_RATIONAL(%d,%d)" numerator denominator))]
     | ScmNumber(ScmReal(x)) -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_FLOAT(%f)" x))]
     | ScmVector(sexprs) -> 
       let offsets = List.map (fun x -> Printf.sprintf "const_tbl+%d" (find_offset x populated_already)) sexprs in
       let offsets_together = List.fold_right (fun next cur -> next ^ "," ^ cur) offsets "" in
-      [(const, (offset, Printf.sprintf "MAKE_LITERAL_VECTOR(%s)" (String.sub offsets_together 0 (String.length offsets_together - 1))))]
+      [(const, (offset, Printf.sprintf "MAKE_LITERAL_VECTOR %s" (String.sub offsets_together 0 (String.length offsets_together - 1))))]
     | ScmPair(car, cdr) -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_PAIR(const_tbl+%d,const_tbl+%d)" (find_offset car populated_already) (find_offset cdr populated_already)))]
     | _ -> raise X_this_shouldnt_happen
 
@@ -260,69 +285,155 @@ module Code_Gen : CODE_GEN = struct
 
   (* GENERATE ASSEMBLY*)
 
-  let rec recursive_generate consts fvars e unique_index = 
+  let generate_lambda_simple_code consts fvars unique_index nested_lambda_index params body =
+    let lcode = Printf.sprintf "Lcode%d" unique_index in
+    let lcont = Printf.sprintf "Lcont%d" unique_index in
+    let add_zero_rib_params_label = Printf.sprintf "add_zero_rib_params%d" unique_index in
+    let copy_env_loop_label = Printf.sprintf "copy_env_loop%d" unique_index in
+    let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" unique_index in
+    let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" unique_index in
+    let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" unique_index in
+    unique_index := !unique_index + 1;
+    let simple_lambda_comment = "; ScmLambdaSimple': \n; Params: " ^ String.concat ", " params ^ "\n" in
+    let generate_lambda_exec_code = lcode ^ ":\n" ^
+                                    "push rbp\n" ^
+                                    "mov rbp , rsp\n" ^
+                                    recursive_generate consts fvars body unique_index (nested_lambda_index + 1) ^
+                                    "leave\n" ^
+                                    "ret\n" ^
+                                    lcont ":\n" in
+    let generate_extended_environment_code = 
+      "mov rdx, " ^ string_of_int !unique_index ^ "\n" ^
+      "shl rdx, 3 ; number_of_environments * 8 bytes\n" ^
+      "MALLOC rdx, rdx\n" ^
+      "mov rbx, [rbp + 8 * 2]\n" ^
+      "cmp rbx, SOB_NIL_ADDRESS\n" ^
+      "je " ^ add_zero_rib_params_label ^ "\n" ^
+      "\n" ^
+      "mov rsi, 0 ; i=0\n" ^
+      "mov rdi, 1 ; j=1\n" ^
+      copy_env_loop_label ^ ":\n" ^
+      "cmp rsi, " ^ string_of_int (!unique_index - 1) ^ "\n" ^
+      "je " ^ end_copy_env_loop_label ^ "\n" ^
+      "mov rcx, [rbx + 8 * rdi]\n" ^ (**THIS MIGHT FAIL *)
+      "mov qword [rdx + 8 * rsi], rcx\n" ^ (**THIS MIGHT FAIL *)
+      "inc rsi\n" ^
+      "inc rdi\n" ^
+      "jmp " ^ copy_env_loop_label ^ "\n" ^
+      end_copy_env_loop_label ^ ":\n" ^
+      "\n" ^
+      add_zero_rib_params_label ^ ":\n" ^
+      "mov rcx, [rbp + 8 * 3]\n" ^
+      "shl rcx, 3 ; number of params * 8 bytes\n" ^
+      "MALLOC rcx, rcx\n" ^
+      "mov qword [rdx + 8 * 0], rcx\n" ^
+      "mov rdi, 0 ; i=0\n" ^
+      copy_params_loop_label ^ ":\n" ^
+      "cmp rdi, [rbp + 8 * 3]\n" ^
+      "je " ^ end_copy_params_loop_label ^ "\n" ^
+      "mov rbx, [rbp + 8 * (4 + rdi)]\n" ^
+      "mov qword [rcx + 8 * rdi], rbx\n" ^
+      "inc rdi\n" ^
+      "jmp " ^ copy_params_loop_label ^ "\n" ^
+      end_copy_params_loop_label ^ ":\n" ^ in
+    let generate_closure_code = 
+      "MALLOC_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
+      "jmp " ^ lcont "\n" in
+    simple_lambda_comment ^ generate_extended_environment_code ^ generate_lambda_exec_code
+
+  let generate_applic_code consts fvars unique_index nested_lambda_index proc args =
+    let applic_comment = "; ScmApplic': \n" in
+    let reversed_args = List.rev args in
+    let generated_proc = recursive_generate consts fvars proc unique_index nested_lambda_index in
+    let generated_reversed_args = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) reversed_args in
+    let args_code = String.concat "push rax\n" generated_reversed_args in
+    let code =
+      args_code ^ "\n" ^
+      "push rax\n" ^
+      "push " ^ string_of_int (List.length args) ^ "\n" ^
+      generated_proc ^
+      "CLOSURE_ENV(rbx, rax)\n" ^
+      "push rbx\n"
+      "CLOSURE_CODE(rbx, rax)\n" ^
+      "call rbx\n" ^
+      "add rsp , 8*1 ; pop env\n" ^
+      "pop rbx ; pop arg count\n" ^
+      "lea rsp , [rsp + 8*rbx]\n" in
+    code
+
+  let rec recursive_generate consts fvars e unique_index nested_lambda_index = 
     match e with
-    | ScmConst' x -> Printf.sprintf "\nmov rax, const_tbl + %d\n" (find_offset e consts)
-    | ScmVar'(VarParam(_, minor)) -> Printf.sprintf "\nmov rax, qword [rbp + 8 ∗ (4 + %d)]\n" minor
-    | ScmVar'(VarBound(_, major, minor)) ->
-      "\nmov rax, qword [rbp + 8 ∗ 2]\n" ^ 
+    | ScmConst' x -> Printf.sprintf "; ScmConst':\nmov rax, const_tbl + %d\n" (find_offset e consts)
+    | ScmVar'(VarParam(name, minor)) -> Printf.sprintf ";ScmVar'(VarParam): %s\nmov rax, qword [rbp + 8 ∗ (4 + %d)]\n" name minor
+    | ScmVar'(VarBound(name, major, minor)) ->
+      "; ScmVar'(VarBound): " ^ name ^ "\n" ^
+      "mov rax, qword [rbp + 8 ∗ 2]\n" ^ 
       "mov rax, qword [rax + 8 ∗ " ^ string_of_int major ^ "]\n" ^ 
       "mov rax, qword [rax + 8 ∗ " ^ string_of_int minor ^ "]\n"
-    | ScmVar'(VarFree(name)) -> Printf.sprintf "\nmov rax, qword [fvar_tbl + %d]\n" (find_index fvars name)
-    | ScmSet'(ScmVar'(VarParam(_, minor)), expr) -> 
-      recursive_generate consts fvars expr unique_index ^ 
+    | ScmVar'(VarFree(name)) -> Printf.sprintf "; ScmVar'(VarFree): %s\nmov rax, qword [fvar_tbl + %d]\n" name (find_index fvars name)
+    | ScmSet'(ScmVar'(VarParam(name, minor)), expr) -> 
+      "; ScmSet':\n; VarParam: " ^ name ^ "\n" ^
+      recursive_generate consts fvars expr unique_index nested_lambda_index ^ 
       "mov qword [rbp + 8 ∗ (4 + " ^ string_of_int minor ^ ")], rax\n" ^
-      "mov rax, sob_void\n"
+      "mov rax, SOB_VOID_ADDRESS\n"
     | ScmSet'(ScmVar'(VarBound(_, major, minor)), expr) -> 
-      recursive_generate consts fvars expr unique_index ^ 
+      "; ScmSet':\n; VarBound: " ^ name ^ "\n" ^
+      recursive_generate consts fvars expr unique_index nested_lambda_index ^ 
       "mov rbx, qword [rbp + 8 ∗ 2]\n" ^
       "mov rbx, qword [rbx + 8 ∗ " ^ string_of_int major ^ "]\n" ^
       "mov qword [rbx + 8 ∗ " ^ string_of_int minor ^ "], rax\n" ^
-      "mov rax, sob_void\n"
+      "mov rax, SOB_VOID_ADDRESS\n"
     | ScmSet'(ScmVar'(VarFree(name)), expr) -> 
-      recursive_generate consts fvars expr unique_index ^ 
+      "; ScmSet':\n; VarFree: " ^ name ^ "\n" ^
+      recursive_generate consts fvars expr unique_index nested_lambda_index ^ 
       "mov qword [fvar_tbl + " ^ string_of_int (find_index fvars name) ^ "], rax\n" ^
-      "mov rax, sob_void\n"
+      "mov rax, SOB_VOID_ADDRESS\n"
     | ScmSeq'(exprs) ->
-      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index) exprs in
+      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) exprs in
       let combined_code = List.fold_right (fun next cur -> next ^ cur) generated_code "" in
-      combined_code
+      "; ScmSeq': \n" ^ combined_code
     | ScmOr'(exprs) -> 
       let lexit = Printf.sprintf "Lexit%d" !unique_index in
       unique_index := !unique_index + 1;
-      let code_between_exprs = "cmp rax, sob_false\n" ^
+      let code_between_exprs = "cmp rax, SOB_FALSE_ADDRESS\n" ^
                                "jne " ^ lexit ^ "\n" in
-      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index) exprs in
+      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) exprs in
       let code_without_lexit = String.concat code_between_exprs generated_code in
       let code = code_without_lexit ^ lexit ^ ":\n"
-      code
+      "; ScmOr': \n" ^ code
     | ScmIf'(test, dit, dif) -> 
       let lelse = Printf.sprintf "Lelse%d" !unique_index in
       let lexit = Printf.sprintf "Lexit%d" !unique_index in
       unique_index := !unique_index + 1;
-      let generated_code_test = recursive_generate consts fvars test unique_index in
-      let generated_code_dit = recursive_generate consts fvars dit unique_index in
-      let generated_code_dif = recursive_generate consts fvars dif unique_index in
+      let generated_code_test = recursive_generate consts fvars test unique_index nested_lambda_index in
+      let generated_code_dit = recursive_generate consts fvars dit unique_index nested_lambda_index in
+      let generated_code_dif = recursive_generate consts fvars dif unique_index nested_lambda_index in
       let code = generated_code_test ^
-                 "cmp rax, sob_false\n" ^
+                 "cmp rax, SOB_FALSE_ADDRESS\n" ^
                  "je " ^ lelse ^ "\n" ^
                  generated_code_dit ^
                  "jmp " ^ lexit ^ "\n" ^
                  lelse ^ ":\n" ^
                  generated_code_dif ^
                  lexit ^ ":\n"
-      code
+      "; ScmIf': \n" ^ code
     | ScmBoxGet'(x) -> 
-      recursive_generate consts fvars x unique_index ^
+      "; ScmBoxGet': \n" ^
+      recursive_generate consts fvars x unique_index nested_lambda_index ^
       "mov rax, qword [rax]\n"
     | ScmBoxSet'(x, expr) -> 
-      recursive_generate consts fvars expr unique_index ^
+      "; ScmBoxSet': \n" ^
+      recursive_generate consts fvars expr unique_index nested_lambda_index ^
       "push rax\n" ^
-      recursive_generate consts fvars x unique_index ^
+      recursive_generate consts fvars x unique_index nested_lambda_index ^
       "pop qword [rax]\n" ^
-      "mov rax, sob_void\n"
+      "mov rax, SOB_VOID_ADDRESS\n"
     | ScmLambdaSimple'(params, body) ->
-      
+      generate_lambda_simple_code consts fvars unique_index nested_lambda_index params body
+    | ScmLambdaOpt'(params, param, body) ->
+      (* FINISH THIS PART *)
+    | ScmApplic'(proc, args) ->
+      generate_applic_code consts fvars unique_index nested_lambda_index proc args
 
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;

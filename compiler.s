@@ -39,28 +39,6 @@
 %endrep
 %endmacro
 
-; Create a string of length %2
-; from char %3.
-; Stores result in register %1
-%macro MAKE_STRING 3 	
-	mov %1, %2+WORD_SIZE+TYPE_SIZE
-	MALLOC %1, %1
-	mov byte [%1], T_STRING
-	mov qword [%1+TYPE_SIZE], %2
-	push rcx
-	add %1, WORD_SIZE+TYPE_SIZE
-	mov rcx, %2
-	cmp rcx, 0
-%%str_loop:
-	jz %%str_loop_end
-	dec rcx
-	mov byte [%1+rcx], %3
-	jmp %%str_loop
-%%str_loop_end:
-	pop rcx
-	sub %1, WORD_SIZE+TYPE_SIZE
-%endmacro
-
 %macro MAKE_LITERAL_STRING 1
 	db T_STRING
 	dq (%%end_str - %%str)
