@@ -17,6 +17,76 @@
 %define MB(n) 1024*KB(n)
 %define GB(n) 1024*MB(n)
 
+%macro MAKE_LITERAL 2 
+	db %1
+	%2
+%endmacro
+
+%define MAKE_LITERAL_INT(val) MAKE_LITERAL T_INTEGER, dq val
+%define MAKE_LITERAL_SYMBOL(val) MAKE_LITERAL T_SYMBOL, dq val
+%define MAKE_LITERAL_CHAR(val) MAKE_LITERAL T_CHAR, db val
+%define MAKE_NIL db T_NIL
+%define MAKE_VOID db T_VOID
+%define MAKE_BOOL(val) MAKE_LITERAL T_BOOL, db val
+
+%macro MAKE_VECTOR 3 	; Create a vector of length %2
+						; from SOB at %3.
+						; Stores result in register %1
+	lea %1, [%2*WORD_SIZE + WORD_SIZE+TYPE_SIZE]
+	MALLOC %1, %1
+	mov byte [%1], T_VECTOR
+	mov qword [%1+TYPE_SIZE], %2
+	push rcx
+	add %1, WORD_SIZE + TYPE_SIZE
+	mov rcx, %2
+	cmp rcx, 0
+%%vec_loop:
+	jz %%vec_loop_end
+	dec rcx
+	mov qword [%1 + rcx*WORD_SIZE], %3
+	jmp %%vec_loop
+%%vec_loop_end:
+	sub %1, WORD_SIZE + TYPE_SIZE
+	pop rcx
+%endmacro
+
+%macro MAKE_LITERAL_VECTOR 0-*
+	db T_VECTOR
+	dq %0
+%rep %0
+	dq %1
+%rotate 1
+%endrep
+%endmacro
+
+%macro MAKE_STRING 3 	; Create a string of length %2
+						; from char %3.
+						; Stores result in register %1
+	mov %1, %2+WORD_SIZE+TYPE_SIZE
+	MALLOC %1, %1
+	mov byte [%1], T_STRING
+	mov qword [%1+TYPE_SIZE], %2
+	push rcx
+	add %1, WORD_SIZE+TYPE_SIZE
+	mov rcx, %2
+	cmp rcx, 0
+%%str_loop:
+	jz %%str_loop_end
+	dec rcx
+	mov byte [%1+rcx], %3
+	jmp %%str_loop
+%%str_loop_end:
+	pop rcx
+	sub %1, WORD_SIZE+TYPE_SIZE
+%endmacro
+
+%macro MAKE_LITERAL_STRING 1
+	db T_STRING
+	dq (%%end_str - %%str)
+%%str:
+	db %1
+%%end_str:
+%endmacro
 
 %macro SKIP_TYPE_TAG 2
 	mov %1, qword [%2+TYPE_SIZE]	
@@ -128,6 +198,9 @@
 
 %define MAKE_LITERAL_RATIONAL(num, den) \
 	MAKE_WORDS_LIT T_RATIONAL, num, den
+
+%define MAKE_LITERAL_FLOAT(val) \
+	MAKE_WORDS_LIT T_FLOAT, val
 	
 %define MAKE_PAIR(r, car, cdr) \
         MAKE_TWO_WORDS r, T_PAIR, car, cdr
