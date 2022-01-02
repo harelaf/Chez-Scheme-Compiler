@@ -247,13 +247,83 @@ module Code_Gen : CODE_GEN = struct
     | [] -> indexed_fvars
     | hd :: tl -> index_fvars_tbl tl (index + 1) ([(hd, index)] @ indexed_fvars)
 
+  let rec find_index fvars_tbl fvar =
+    match fvars_tbl with
+    | [] -> raise X_this_shouldnt_happen
+    | (name, index) :: tl when name = fvar -> index
+    | hd :: tl -> find_index tl fvar
+
   let make_fvars_tbl asts = 
     let free_vars_with_dups = create_fvars_tbl_with_dups asts [] in
     let free_vars_no_dups = remove_dups free_vars_with_dups [] in
     index_fvars_tbl free_vars_no_dups 0 []
 
   (* GENERATE ASSEMBLY*)
-  
+
+  let rec recursive_generate consts fvars e unique_index = 
+    match e with
+    | ScmConst' x -> Printf.sprintf "\nmov rax, const_tbl + %d\n" (find_offset e consts)
+    | ScmVar'(VarParam(_, minor)) -> Printf.sprintf "\nmov rax, qword [rbp + 8 ∗ (4 + %d)]\n" minor
+    | ScmVar'(VarBound(_, major, minor)) ->
+      "\nmov rax, qword [rbp + 8 ∗ 2]\n" ^ 
+      "mov rax, qword [rax + 8 ∗ " ^ string_of_int major ^ "]\n" ^ 
+      "mov rax, qword [rax + 8 ∗ " ^ string_of_int minor ^ "]\n"
+    | ScmVar'(VarFree(name)) -> Printf.sprintf "\nmov rax, qword [fvar_tbl + %d]\n" (find_index fvars name)
+    | ScmSet'(ScmVar'(VarParam(_, minor)), expr) -> 
+      recursive_generate consts fvars expr unique_index ^ 
+      "mov qword [rbp + 8 ∗ (4 + " ^ string_of_int minor ^ ")], rax\n" ^
+      "mov rax, sob_void\n"
+    | ScmSet'(ScmVar'(VarBound(_, major, minor)), expr) -> 
+      recursive_generate consts fvars expr unique_index ^ 
+      "mov rbx, qword [rbp + 8 ∗ 2]\n" ^
+      "mov rbx, qword [rbx + 8 ∗ " ^ string_of_int major ^ "]\n" ^
+      "mov qword [rbx + 8 ∗ " ^ string_of_int minor ^ "], rax\n" ^
+      "mov rax, sob_void\n"
+    | ScmSet'(ScmVar'(VarFree(name)), expr) -> 
+      recursive_generate consts fvars expr unique_index ^ 
+      "mov qword [fvar_tbl + " ^ string_of_int (find_index fvars name) ^ "], rax\n" ^
+      "mov rax, sob_void\n"
+    | ScmSeq'(exprs) ->
+      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index) exprs in
+      let combined_code = List.fold_right (fun next cur -> next ^ cur) generated_code "" in
+      combined_code
+    | ScmOr'(exprs) -> 
+      let lexit = Printf.sprintf "Lexit%d" !unique_index in
+      unique_index := !unique_index + 1;
+      let code_between_exprs = "cmp rax, sob_false\n" ^
+                               "jne " ^ lexit ^ "\n" in
+      let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index) exprs in
+      let code_without_lexit = String.concat code_between_exprs generated_code in
+      let code = code_without_lexit ^ lexit ^ ":\n"
+      code
+    | ScmIf'(test, dit, dif) -> 
+      let lelse = Printf.sprintf "Lelse%d" !unique_index in
+      let lexit = Printf.sprintf "Lexit%d" !unique_index in
+      unique_index := !unique_index + 1;
+      let generated_code_test = recursive_generate consts fvars test unique_index in
+      let generated_code_dit = recursive_generate consts fvars dit unique_index in
+      let generated_code_dif = recursive_generate consts fvars dif unique_index in
+      let code = generated_code_test ^
+                 "cmp rax, sob_false\n" ^
+                 "je " ^ lelse ^ "\n" ^
+                 generated_code_dit ^
+                 "jmp " ^ lexit ^ "\n" ^
+                 lelse ^ ":\n" ^
+                 generated_code_dif ^
+                 lexit ^ ":\n"
+      code
+    | ScmBoxGet'(x) -> 
+      recursive_generate consts fvars x unique_index ^
+      "mov rax, qword [rax]\n"
+    | ScmBoxSet'(x, expr) -> 
+      recursive_generate consts fvars expr unique_index ^
+      "push rax\n" ^
+      recursive_generate consts fvars x unique_index ^
+      "pop qword [rax]\n" ^
+      "mov rax, sob_void\n"
+    | ScmLambdaSimple'(params, body) ->
+      
+
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;
 

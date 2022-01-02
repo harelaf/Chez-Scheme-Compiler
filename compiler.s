@@ -30,27 +30,6 @@
 %define MAKE_VOID db T_VOID
 %define MAKE_BOOL(val) MAKE_LITERAL T_BOOL, db val
 
-%macro MAKE_VECTOR 3 	; Create a vector of length %2
-						; from SOB at %3.
-						; Stores result in register %1
-	lea %1, [%2*WORD_SIZE + WORD_SIZE+TYPE_SIZE]
-	MALLOC %1, %1
-	mov byte [%1], T_VECTOR
-	mov qword [%1+TYPE_SIZE], %2
-	push rcx
-	add %1, WORD_SIZE + TYPE_SIZE
-	mov rcx, %2
-	cmp rcx, 0
-%%vec_loop:
-	jz %%vec_loop_end
-	dec rcx
-	mov qword [%1 + rcx*WORD_SIZE], %3
-	jmp %%vec_loop
-%%vec_loop_end:
-	sub %1, WORD_SIZE + TYPE_SIZE
-	pop rcx
-%endmacro
-
 %macro MAKE_LITERAL_VECTOR 0-*
 	db T_VECTOR
 	dq %0
@@ -60,9 +39,10 @@
 %endrep
 %endmacro
 
-%macro MAKE_STRING 3 	; Create a string of length %2
-						; from char %3.
-						; Stores result in register %1
+; Create a string of length %2
+; from char %3.
+; Stores result in register %1
+%macro MAKE_STRING 3 	
 	mov %1, %2+WORD_SIZE+TYPE_SIZE
 	MALLOC %1, %1
 	mov byte [%1], T_STRING
