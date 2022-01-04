@@ -286,13 +286,13 @@ module Code_Gen : CODE_GEN = struct
   (* GENERATE ASSEMBLY*)
 
   let generate_lambda_simple_code consts fvars unique_index nested_lambda_index params body =
-    let lcode = Printf.sprintf "Lcode%d" unique_index in
-    let lcont = Printf.sprintf "Lcont%d" unique_index in
-    let add_zero_rib_params_label = Printf.sprintf "add_zero_rib_params%d" unique_index in
-    let copy_env_loop_label = Printf.sprintf "copy_env_loop%d" unique_index in
-    let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" unique_index in
-    let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" unique_index in
-    let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" unique_index in
+    let lcode = Printf.sprintf "Lcode%d" !unique_index in
+    let lcont = Printf.sprintf "Lcont%d" !unique_index in
+    let add_zero_rib_params_label = Printf.sprintf "add_zero_rib_params%d" !unique_index in
+    let copy_env_loop_label = Printf.sprintf "copy_env_loop%d" !unique_index in
+    let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" !unique_index in
+    let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" !unique_index in
+    let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" !unique_index in
     unique_index := !unique_index + 1;
     let simple_lambda_comment = "; ScmLambdaSimple': \n; Params: " ^ String.concat ", " params ^ "\n" in
     let generate_lambda_exec_code = lcode ^ ":\n" ^
@@ -302,6 +302,114 @@ module Code_Gen : CODE_GEN = struct
                                     "leave\n" ^
                                     "ret\n" ^
                                     lcont ":\n" in
+    let generate_extended_environment_code = 
+      "mov rdx, " ^ string_of_int !unique_index ^ "\n" ^
+      "shl rdx, 3 ; number_of_environments * 8 bytes\n" ^
+      "MALLOC rdx, rdx\n" ^
+      "mov rbx, [rbp + 8 * 2]\n" ^
+      "cmp rbx, SOB_NIL_ADDRESS\n" ^
+      "je " ^ add_zero_rib_params_label ^ "\n" ^
+      "\n" ^
+      "mov rsi, 0 ; i=0\n" ^
+      "mov rdi, 1 ; j=1\n" ^
+      copy_env_loop_label ^ ":\n" ^
+      "cmp rsi, " ^ string_of_int (!unique_index - 1) ^ "\n" ^
+      "je " ^ end_copy_env_loop_label ^ "\n" ^
+      "mov rcx, [rbx + 8 * rdi]\n" ^ (**THIS MIGHT FAIL *)
+      "mov qword [rdx + 8 * rsi], rcx\n" ^ (**THIS MIGHT FAIL *)
+      "inc rsi\n" ^
+      "inc rdi\n" ^
+      "jmp " ^ copy_env_loop_label ^ "\n" ^
+      end_copy_env_loop_label ^ ":\n" ^
+      "\n" ^
+      add_zero_rib_params_label ^ ":\n" ^
+      "mov rcx, [rbp + 8 * 3]\n" ^
+      "shl rcx, 3 ; number of params * 8 bytes\n" ^
+      "MALLOC rcx, rcx\n" ^
+      "mov qword [rdx + 8 * 0], rcx\n" ^
+      "mov rdi, 0 ; i=0\n" ^
+      copy_params_loop_label ^ ":\n" ^
+      "cmp rdi, [rbp + 8 * 3]\n" ^
+      "je " ^ end_copy_params_loop_label ^ "\n" ^
+      "mov rbx, [rbp + 8 * (4 + rdi)]\n" ^
+      "mov qword [rcx + 8 * rdi], rbx\n" ^
+      "inc rdi\n" ^
+      "jmp " ^ copy_params_loop_label ^ "\n" ^
+      end_copy_params_loop_label ^ ":\n" ^ in
+    let generate_closure_code = 
+      "MALLOC_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
+      "jmp " ^ lcont "\n" in
+    simple_lambda_comment ^ generate_extended_environment_code ^ generate_lambda_exec_code
+  
+  let generate_lambda_opt_code consts fvars unique_index nested_lambda_index params param body =
+    let lcode = Printf.sprintf "Lcode%d" !unique_index in
+    let lcont = Printf.sprintf "Lcont%d" !unique_index in
+    let add_nil_to_stack_label = Printf.sprintf "add_nil_to_stack%d" !unique_index in
+    let add_nil_loop_label = Printf.sprintf "add_nil_loop%d" !unique_index in
+    let end_add_nil_loop_label = Printf.sprintf "end_add_nil_loop%d" !unique_index in
+    let adjust_stack_to_list_label = Printf.sprintf "adjust_stack_to_list%d" !unique_index in
+    let create_list_loop_label = Printf.printf "create_list_loop%d" !unique_index in
+    let end_create_list_loop_label = Printf.printf "end_create_list_loop%d" !unique_index in
+    let add_zero_rib_params_label = Printf.sprintf "add_zero_rib_params%d" !unique_index in
+    let copy_env_loop_label = Printf.sprintf "copy_env_loop%d" !unique_index in
+    let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" !unique_index in
+    let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" !unique_index in
+    let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" !unique_index in
+    unique_index := !unique_index + 1;
+    let opt_lambda_comment = "; ScmLambdaOpt': \n; Params: " ^ String.concat ", " params ^ "\n; Optional Param: " ^ param ^ "\n" in
+    let generate_lambda_exec_code = 
+      "mov rbx, " ^ string_of_int (List.length params) ^ " ; Number of params\n" ^
+      "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n; " ^ 
+      "cmp rbx, rcx\n" ^
+      "je " ^ add_nil_to_stack_label ^ "\n" ^
+      "\n" ^
+      adjust_stack_to_list_label ^ ":\n" ^
+      "mov rax, SOB_NIL_ADDRESS\n" ^
+      "sub rcx, rbx ; rcx has the amount of extra args on stack\n" ^
+      "mov rdi, rcx ; now rdi has it ^\n" ^
+      "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n" ^
+      "dec rcx\n" ^
+      "add rcx, 4 ; rcx has the offset of the last arg\n" ^
+      "shl rcx, 3 ; 8*\n" ^
+      "add rcx, rbp\n" ^ 
+      create_list_loop_label ^ ":\n" ^
+      "cmp rdi, 0\n" ^
+      "je " ^ end_create_list_loop_label ^ "\n" ^
+      (* USE MAKE_PAIR TO CREATE THE PAIRS *)
+
+      "sub rcx, 8\n" ^
+      "dec rdi\n" ^
+      end_create_list_loop_label ^ ":\n" ^
+      (* DONT FORGET TO PUSH THE STACK UP AND UPDATE rbp *)
+      "jmp " lcode ^ "\n" ^
+      "\n" ^
+      add_nil_to_stack_label ^ ":\n" ^
+      "mov rdi, rcx\n ; counter\n" ^
+      "add rdi, 4\n" ^
+      "inc rbx\n" ^
+      "mov qword [rbp + 8 * 3], rbx ; +1 for nil\n" ^
+      "mov rbx, rbp ; Copy from\n" ^
+      "mov rcx, rbp ; Copy to\n" ^
+      "sub rcx, 8\n" ^
+      add_nil_loop_label ^ ":\n" ^
+      "cmp rdi, 0\n" ^
+      "je " ^ end_add_nil_loop_label ^ ":\n" ^
+      "mov rdx, [rbx]\n" ^
+      "mov [rcx], rdx\n" ^
+      "add rbx, 8 ; Next block to copy from\n" ^
+      "add rcx, 8 ; Next block to copy to\n" ^
+      "dec rdi\n"  
+      end_add_nil_loop_label ^ ":\n" ^
+      "mov qword [rcx], SOB_NIL_ADDRESS\n" ^
+      "sub rbp, 8 ; rbp now points 1 block lower\n" ^
+      "\n" ^
+      lcode ^ ":\n" ^
+      "push rbp\n" ^
+      "mov rbp , rsp\n" ^
+      recursive_generate consts fvars body unique_index (nested_lambda_index + 1) ^
+      "leave\n" ^
+      "ret\n" ^
+      lcont ":\n" in
     let generate_extended_environment_code = 
       "mov rdx, " ^ string_of_int !unique_index ^ "\n" ^
       "shl rdx, 3 ; number_of_environments * 8 bytes\n" ^
