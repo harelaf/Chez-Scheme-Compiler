@@ -143,7 +143,8 @@ try
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in  
 
   (* Generate assembly code for each ast and merge them all into a single string *)
-  let generate = Code_Gen.generate consts_tbl fvars_tbl in 
+  let unique_index = ref 0 in
+  let generate = Code_Gen.generate consts_tbl fvars_tbl unique_index in 
   let code_fragment = String.concat "\n\n"
                         (List.map
                            (fun ast -> (generate ast) ^ "\n\tcall write_sob_if_not_void")
