@@ -67,7 +67,7 @@ module type CODE_GEN = sig
      argument is the fvars table type, and the third is an expr' that has been annotated 
      by the semantic analyser.
    *)
-  val generate : (sexpr * (int * string)) list -> (string * int) list -> expr' -> string
+  val generate : (sexpr * (int * string)) list -> (string * int) list -> int ref -> expr' -> string
 end;;
 
 module Code_Gen : CODE_GEN = struct
@@ -335,11 +335,11 @@ module Code_Gen : CODE_GEN = struct
       "mov qword [rcx + 8 * rdi], rbx\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_params_loop_label ^ "\n" ^
-      end_copy_params_loop_label ^ ":\n" ^ in
+      end_copy_params_loop_label ^ ":\n" in
     let generate_closure_code = 
       "MALLOC_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
       "jmp " ^ lcont "\n" in
-    simple_lambda_comment ^ generate_extended_environment_code ^ generate_lambda_exec_code
+    simple_lambda_comment ^ generate_extended_environment_code ^ generate_closure_code ^ generate_lambda_exec_code
   
   let generate_lambda_opt_code consts fvars unique_index nested_lambda_index params param body =
     let lcode = Printf.sprintf "Lcode%d" !unique_index in
@@ -348,8 +348,10 @@ module Code_Gen : CODE_GEN = struct
     let add_nil_loop_label = Printf.sprintf "add_nil_loop%d" !unique_index in
     let end_add_nil_loop_label = Printf.sprintf "end_add_nil_loop%d" !unique_index in
     let adjust_stack_to_list_label = Printf.sprintf "adjust_stack_to_list%d" !unique_index in
-    let create_list_loop_label = Printf.printf "create_list_loop%d" !unique_index in
-    let end_create_list_loop_label = Printf.printf "end_create_list_loop%d" !unique_index in
+    let create_list_loop_label = Printf.sprintf "create_list_loop%d" !unique_index in
+    let end_create_list_loop_label = Printf.sprintf "end_create_list_loop%d" !unique_index in
+    let push_stack_loop_label = Printf.sprintf "push_stack_loop%d" !unique_index in
+    let end_push_stack_loop_label = Printf.sprintf "end_push_stack_loop%d" !unique_index in
     let add_zero_rib_params_label = Printf.sprintf "add_zero_rib_params%d" !unique_index in
     let copy_env_loop_label = Printf.sprintf "copy_env_loop%d" !unique_index in
     let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" !unique_index in
@@ -364,23 +366,61 @@ module Code_Gen : CODE_GEN = struct
       "je " ^ add_nil_to_stack_label ^ "\n" ^
       "\n" ^
       adjust_stack_to_list_label ^ ":\n" ^
-      "mov rax, SOB_NIL_ADDRESS\n" ^
+      "mov rsi, [rbp + 8 * 3]\n" ^
+      "sub rsi, " ^ string_of_int (List.length params) ^ "\n" ^
+      "sub rsi, 1 ; rsi holds the amount of blocks we need to push later\n" ^
+      "mov rax, SOB_NIL_ADDRESS ; cdr\n" ^
       "sub rcx, rbx ; rcx has the amount of extra args on stack\n" ^
       "mov rdi, rcx ; now rdi has it ^\n" ^
       "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n" ^
+      "mov rdx, rcx\n" ^
+      "sub rdx, " ^ string_of_int (List.length params) ^ "\n" ^
+      "add rdx, 1\n"
+      "mov qword [rbp + 8 * 3], rdx ; updating number of params on stack\n" ^
       "dec rcx\n" ^
       "add rcx, 4 ; rcx has the offset of the last arg\n" ^
       "shl rcx, 3 ; 8*\n" ^
       "add rcx, rbp\n" ^ 
+      "push rcx ; save it for later\n" ^
       create_list_loop_label ^ ":\n" ^
       "cmp rdi, 0\n" ^
       "je " ^ end_create_list_loop_label ^ "\n" ^
-      (* USE MAKE_PAIR TO CREATE THE PAIRS *)
-
+      "mov rbx, qword [rcx] ; car\n" ^
+      "MAKE_PAIR(rdx, rbx, rax) ; rdx has new list\n" ^
+      "mov rax, rdx ; now rax has it ^\n" ^
       "sub rcx, 8\n" ^
       "dec rdi\n" ^
       end_create_list_loop_label ^ ":\n" ^
-      (* DONT FORGET TO PUSH THE STACK UP AND UPDATE rbp *)
+      "pop rcx ; rcx now points to the last argument on stack\n" ^
+      "mov qword [rcx], rax ; new list is now in the correct place\n" ^
+      "; now lets push the stack up\n" ^
+      "mov rdx, qword [rbp + 8 * 3]\n" ^
+      "dec rdx\n" ^
+      "dec rdx ; offset of first arg to push up\n" ^
+      "mov rcx, rdx\n" ^
+      "add rcx, rsi ; offset of the block we need to push to\n" ^
+      "add rdx, 4\n" ^
+      "shl rdx, 3\n" ^
+      "add rdx, rbp\n" ^
+      "mov rbx, rdx ; push from\n" ^
+      "add rcx, 4\n" ^
+      "shl rcx, 3\n" ^
+      "add rcx, rbp ; push to\n" ^
+      "mov rdi, qword [rbp + 8 * 3] ; correct number of arguments on stack\n" ^
+      "dec rdi ; the list\n" ^
+      "add rdi, 4\n" ^
+      push_stack_loop_label ^ ":\n" ^
+      "cmp rdi, 0\n" ^
+      "je " ^ end_push_stack_loop_label ^ "\n" ^
+      "mov rdx, qword [rbx]\n" ^
+      "mov qword [rcx], rdx\n" ^
+      "sub rbx, 8\n" ^
+      "sub rcx, 8\n" ^
+      "dec rdi\n" ^
+      end_push_stack_loop_label ^ ":\n" ^
+      "shl rsi, 3 ; push rbp and rsp up\n" ^
+      "add rbp, rsi\n" ^
+      "add rsp, rsi\n" ^
       "jmp " lcode ^ "\n" ^
       "\n" ^
       add_nil_to_stack_label ^ ":\n" ^
@@ -394,14 +434,15 @@ module Code_Gen : CODE_GEN = struct
       add_nil_loop_label ^ ":\n" ^
       "cmp rdi, 0\n" ^
       "je " ^ end_add_nil_loop_label ^ ":\n" ^
-      "mov rdx, [rbx]\n" ^
-      "mov [rcx], rdx\n" ^
+      "mov rdx, qword [rbx]\n" ^
+      "mov qword [rcx], rdx\n" ^
       "add rbx, 8 ; Next block to copy from\n" ^
       "add rcx, 8 ; Next block to copy to\n" ^
-      "dec rdi\n"  
+      "dec rdi\n"  ^
       end_add_nil_loop_label ^ ":\n" ^
       "mov qword [rcx], SOB_NIL_ADDRESS\n" ^
       "sub rbp, 8 ; rbp now points 1 block lower\n" ^
+      "sub rsp, 8 ; rsp now points 1 block lower\n" ^
       "\n" ^
       lcode ^ ":\n" ^
       "push rbp\n" ^
@@ -443,14 +484,15 @@ module Code_Gen : CODE_GEN = struct
       "mov qword [rcx + 8 * rdi], rbx\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_params_loop_label ^ "\n" ^
-      end_copy_params_loop_label ^ ":\n" ^ in
+      end_copy_params_loop_label ^ ":\n" in
     let generate_closure_code = 
       "MALLOC_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
       "jmp " ^ lcont "\n" in
-    simple_lambda_comment ^ generate_extended_environment_code ^ generate_lambda_exec_code
+    opt_lambda_comment ^ generate_extended_environment_code ^ generate_closure_code ^ generate_lambda_exec_code
 
   let generate_applic_code consts fvars unique_index nested_lambda_index proc args =
     let applic_comment = "; ScmApplic': \n" in
+    let is_closure_label = Printf.sprintf "is_closure%d" !unique_index in
     let reversed_args = List.rev args in
     let generated_proc = recursive_generate consts fvars proc unique_index nested_lambda_index in
     let generated_reversed_args = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) reversed_args in
@@ -460,6 +502,11 @@ module Code_Gen : CODE_GEN = struct
       "push rax\n" ^
       "push " ^ string_of_int (List.length args) ^ "\n" ^
       generated_proc ^
+      "cmp byte [rax], T_CLOSURE\n" ^
+      "je " ^ is_closure_label ^ "\n" ^
+      "mov bl, 0\n" ^
+      "div bl ; divide by zero because rax is not a closure\n" ^
+      is_closure_label ^ ":\n" ^
       "CLOSURE_ENV(rbx, rax)\n" ^
       "push rbx\n"
       "CLOSURE_CODE(rbx, rax)\n" ^
@@ -467,6 +514,33 @@ module Code_Gen : CODE_GEN = struct
       "add rsp , 8*1 ; pop env\n" ^
       "pop rbx ; pop arg count\n" ^
       "lea rsp , [rsp + 8*rbx]\n" in
+    code
+
+  let generate_applicTP_code consts fvars unique_index nested_lambda_index proc args =
+    let applicTP_comment = "; ScmApplicTP': \n" in
+    let is_closure_label = Printf.sprintf "is_closure%d" !unique_index in
+    let reversed_args = List.rev args in
+    let generated_proc = recursive_generate consts fvars proc unique_index nested_lambda_index in
+    let generated_reversed_args = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) reversed_args in
+    let args_code = String.concat "push rax\n" generated_reversed_args in
+    let code =
+      args_code ^ "\n" ^
+      "push rax\n" ^
+      "push " ^ string_of_int (List.length args) ^ "\n" ^
+      generated_proc ^
+      "cmp byte [rax], T_CLOSURE\n" ^
+      "je " ^ is_closure_label ^ "\n" ^
+      "mov bl, 0\n" ^
+      "div bl ; divide by zero because rax is not a closure\n" ^
+      is_closure_label ^ ":\n" ^
+      "CLOSURE_ENV(rbx, rax)\n" ^
+      "push rbx\n"
+      "CLOSURE_CODE(rbx, rax)\n" ^
+      "mov rax, rbx\n" ^
+      "push qword [rbp + 8 * 1] ; old ret addr\n" ^
+
+      "jmp rax\n"
+      in
     code
 
   let rec recursive_generate consts fvars e unique_index nested_lambda_index = 
@@ -496,6 +570,13 @@ module Code_Gen : CODE_GEN = struct
       recursive_generate consts fvars expr unique_index nested_lambda_index ^ 
       "mov qword [fvar_tbl + " ^ string_of_int (find_index fvars name) ^ "], rax\n" ^
       "mov rax, SOB_VOID_ADDRESS\n"
+    | ScmDef'(VarFree(name), expr) -> 
+      "; ScmDef':\n; VarFree: " ^ name ^ "\n" ^
+      recursive_generate consts fvars expr unique_index nested_lambda_index ^ 
+      "mov qword [fvar_tbl + " ^ string_of_int (find_index fvars name) ^ "], rax\n" ^
+      "mov rax, SOB_VOID_ADDRESS\n"
+    | ScmDef'(VarBound(name), expr) -> raise X_this_shouldnt_happen
+    | ScmDef'(VarParam(name), expr) -> raise X_this_shouldnt_happen
     | ScmSeq'(exprs) ->
       let generated_code = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) exprs in
       let combined_code = List.fold_right (fun next cur -> next ^ cur) generated_code "" in
@@ -539,10 +620,13 @@ module Code_Gen : CODE_GEN = struct
     | ScmLambdaSimple'(params, body) ->
       generate_lambda_simple_code consts fvars unique_index nested_lambda_index params body
     | ScmLambdaOpt'(params, param, body) ->
-      (* FINISH THIS PART *)
+      generate_lambda_opt_code consts fvars unique_index nested_lambda_index params param body
     | ScmApplic'(proc, args) ->
       generate_applic_code consts fvars unique_index nested_lambda_index proc args
+    | ScmApplicTP'(proc, args) ->
+      generate_applicTP_code consts fvars unique_index nested_lambda_index proc args
 
-  let generate consts fvars e = raise X_not_yet_implemented;;
+  let generate consts fvars unique_index e = 
+    recursive_generate consts fvars e unique_index 0
 end;;
 
