@@ -42,10 +42,40 @@
 		  			(proc (car lst) (fold-right-loop proc init (cdr lst)))))))
 		(fold-right-loop proc init lst)))))
 
+(define without-last-elem
+  (let ((null? null?)
+  		(car car)
+		(cdr cdr))
+	(lambda (lst)
+	  (letrec ((without-last-elem-loop
+		 		(lambda (lst)
+                  (if (null? (cdr lst))
+                    '()                                           
+                    (cons (car lst) (without-last-elem-loop (cdr lst)))))))
+    	(without-last-elem-loop lst)))))
+
+(define last-elem      
+  (let ((null? null?) 
+        (car car)
+        (cdr cdr)) 
+    (lambda (lst)      
+      (letrec ((last-elem-loop    
+      			(lambda (lst)               
+    			  (if (null? (cdr lst))        
+      				(car lst)                     
+      				(last-elem-loop  (cdr lst))))))
+    	(last-elem-loop lst)))))
+
 (define cons*
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (let ((null? null?)
+		(cons cons)
+		(last-elem last-elem)
+		(without-last-elem without-last-elem)
+		(fold-right fold-right))
+  	(lambda argslist
+	  (if (null? argslist)
+		'()
+		(fold-right cons (last-elem argslist) (without-last-elem argslist))))))
 
 (define append
   (let ((null? null?)
