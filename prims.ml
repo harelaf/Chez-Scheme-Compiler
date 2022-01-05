@@ -349,9 +349,28 @@ module Prims : PRIMS = struct
          MAKE_RATIONAL(rax, rdx, 1)", make_binary, "gcd";  
       ] in
     String.concat "\n\n" (List.map (fun (a, b, c) -> (b c a)) misc_parts);;
+  
+  let car =
+    (make_unary "car" "CAR rax, rsi")
+
+  let cdr =
+    (make_unary "cdr" "CDR rax, rsi")
+  
+  let cons =
+    (make_binary "cons" "MAKE_PAIR(rax, rsi, rdi)")
+
+  let set_car = 
+    let body = "mov qword [rsi + 8 * 1], rdi\n" ^
+               "mov rax SOB_VOID_ADDRESS" in
+    (make_binary "set-car!" body)
+  
+  let set_cdr = 
+    let body = "mov qword [rsi + 8 * 2], rdi\n" ^
+               "mov rax SOB_VOID_ADDRESS" in
+    (make_binary "set-cdr!" body)
 
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
      string of primitive procedures. *)
-  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops];;
+  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; car; cdr; cons; set_car; set_cdr];;
 end;;
