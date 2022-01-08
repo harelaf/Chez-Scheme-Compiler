@@ -361,13 +361,13 @@ module Prims : PRIMS = struct
 
   let set_car = 
     let body = "mov qword [rsi + 8 * 1], rdi\n" ^
-               "mov rax SOB_VOID_ADDRESS" in
-    (make_binary "set-car!" body)
+               "mov rax, SOB_VOID_ADDRESS" in
+    (make_binary "set_car" body)
   
   let set_cdr = 
     let body = "mov qword [rsi + 8 * 2], rdi\n" ^
-               "mov rax SOB_VOID_ADDRESS" in
-    (make_binary "set-cdr!" body)
+               "mov rax, SOB_VOID_ADDRESS" in
+    (make_binary "set_cdr" body)
 
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
