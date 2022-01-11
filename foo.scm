@@ -1,2 +1,1 @@
-(define foo (lambda x x))
-(foo)
+(or #t 1 2 'a)

@@ -10,7 +10,7 @@ malloc_pointer:
 ;;; here we REServe enough Quad-words (64-bit "cells") for the free variables
 ;;; each free variable has 8 bytes reserved for a 64-bit pointer to its value
 fvar_tbl:
-    resq 51
+    resq 50
 
 section .data
 const_tbl:
@@ -18,6 +18,10 @@ db T_VOID
 db T_NIL
 db T_BOOL, 0
 db T_BOOL, 1
+MAKE_LITERAL_RATIONAL(1,1)
+MAKE_LITERAL_RATIONAL(2,1)
+MAKE_LITERAL_STRING "a"
+MAKE_LITERAL_SYMBOL(const_tbl+40)
 
 ;;; These macro definitions are required for the primitive
 ;;; definitions in the epilogue to work properly
@@ -107,160 +111,22 @@ user_code_fragment:
 ;;; The code you compiled will be added here.
 ;;; It will be executed immediately after the closures for 
 ;;; the primitive procedures are set up.
-; ScmDef':
-; VarFree: foo
-; ScmLambdaOpt': 
-; Params: 
-; Optional Param: x
-mov rdx, 1
-shl rdx, 3 ; number_of_environments * 8 bytes
-MALLOC rdx, rdx
-mov rbx, [rbp + 8 * 2]
-cmp rbx, SOB_NIL_ADDRESS
-je add_zero_rib_params0
-
-mov rsi, 0 ; i=0
-mov rdi, 1 ; j=1
-copy_env_loop0:
-cmp rsi, -1
-je end_copy_env_loop0
-mov rcx, [rbx + 8 * rdi]
-mov qword [rdx + 8 * rsi], rcx
-inc rsi
-inc rdi
-jmp copy_env_loop0
-end_copy_env_loop0:
-
-add_zero_rib_params0:
-mov rcx, [rbp + 8 * 3]
-shl rcx, 3 ; number of params * 8 bytes
-MALLOC rcx, rcx
-mov qword [rdx + 8 * 0], rcx
-mov rdi, 0 ; i=0
-copy_params_loop0:
-cmp rdi, [rbp + 8 * 3]
-je end_copy_params_loop0
-mov rbx, [rbp + 8 * (4 + rdi)]
-mov qword [rcx + 8 * rdi], rbx
-inc rdi
-jmp copy_params_loop0
-end_copy_params_loop0:
-MAKE_CLOSURE(rax, rdx, Lcode0)
-jmp Lcont0
-Lcode0:
-mov rbx, 0 ; Number of params
-mov rcx, [rbp + 8 * 3] ; Number of args on stack
-cmp rbx, rcx
-je add_nil_to_stack0
-
-adjust_stack_to_list0:
-mov rsi, [rbp + 8 * 3]
-sub rsi, 0
-sub rsi, 1 ; rsi holds the amount of blocks we need to push later
-mov rax, SOB_NIL_ADDRESS ; cdr
-sub rcx, rbx ; rcx has the amount of extra args on stack
-mov rdi, rcx ; now rdi has it ^
-mov rcx, [rbp + 8 * 3] ; Number of args on stack
-mov rdx, rcx
-sub rdx, 0
-add rdx, 1
-mov qword [rbp + 8 * 3], rdx ; updating number of params on stack
-dec rcx
-add rcx, 4 ; rcx has the offset of the last arg
-shl rcx, 3 ; 8*
-add rcx, rbp
-push rcx ; save it for later
-create_list_loop0:
-cmp rdi, 0
-je end_create_list_loop0
-mov rbx, qword [rcx] ; car
-MAKE_PAIR(rdx, rbx, rax) ; rdx has new list
-mov rax, rdx ; now rax has it ^
-sub rcx, 8
-dec rdi
-end_create_list_loop0:
-pop rcx ; rcx now points to the last argument on stack
-mov qword [rcx], rax ; new list is now in the correct place
-; now lets push the stack up
-mov rdx, qword [rbp + 8 * 3]
-dec rdx
-dec rdx ; offset of first arg to push up
-mov rcx, rdx
-add rcx, rsi ; offset of the block we need to push to
-add rdx, 4
-shl rdx, 3
-add rdx, rbp
-mov rbx, rdx ; push from
-add rcx, 4
-shl rcx, 3
-add rcx, rbp ; push to
-mov rdi, qword [rbp + 8 * 3] ; correct number of arguments on stack
-dec rdi ; the list
-add rdi, 4
-push_stack_loop0:
-cmp rdi, 0
-je end_push_stack_loop0
-mov rdx, qword [rbx]
-mov qword [rcx], rdx
-sub rbx, 8
-sub rcx, 8
-dec rdi
-end_push_stack_loop0:
-shl rsi, 3 ; push rbp and rsp up
-add rbp, rsi
-add rsp, rsi
-jmp body0
-
-add_nil_to_stack0:
-mov rdi, rcx ; counter
-add rdi, 4
-inc rbx
-mov qword [rbp + 8 * 3], rbx ; +1 for nil
-mov rbx, rbp ; Copy from
-mov rcx, rbp ; Copy to
-sub rcx, 8
-add_nil_loop0:
-cmp rdi, 0
-je end_add_nil_loop0
-mov rdx, qword [rbx]
-mov qword [rcx], rdx
-add rbx, 8 ; Next block to copy from
-add rcx, 8 ; Next block to copy to
-dec rdi
-jmp add_nil_loop0
-end_add_nil_loop0:
-mov qword [rcx], SOB_NIL_ADDRESS
-
-body0:
-push rbp
-mov rbp , rsp
-;ScmVar'(VarParam): x
-mov rax, qword [rbp + 8 * 4]
-leave
-ret
-Lcont0:
-mov qword [fvar_tbl + 400], rax
-mov rax, SOB_VOID_ADDRESS
-
-	call write_sob_if_not_void
-
-; ScmApplic': 
-
-push 0
-; ScmVar'(VarFree): foo
-mov rax, qword [fvar_tbl + 400]
-cmp byte [rax], T_CLOSURE
-je is_closure1
-mov bl, 0
-div bl ; divide by zero because rax is not a closure
-is_closure1:
-CLOSURE_ENV rbx, rax
-push rbx
-CLOSURE_CODE rdx, rax
-call rdx
-add rsp , 8*1 ; pop env
-pop rbx ; pop arg count
-lea rsp , [rsp + 8 * rbx]
+; ScmOr': 
+; ScmConst':
+mov rax, const_tbl + 4
+cmp rax, SOB_FALSE_ADDRESS
+jne Lexit0
+; ScmConst':
+mov rax, const_tbl + 6
+cmp rax, SOB_FALSE_ADDRESS
+jne Lexit0
+; ScmConst':
+mov rax, const_tbl + 23
+cmp rax, SOB_FALSE_ADDRESS
+jne Lexit0
+; ScmConst':
+mov rax, const_tbl + 50
+Lexit0:
 
 	call write_sob_if_not_void;;; Clean up the dummy frame, set the exit status to 0 ("success"), 
    ;;; and return from main
