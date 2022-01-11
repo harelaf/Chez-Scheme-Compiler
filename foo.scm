@@ -1,1 +1,2 @@
-5
+(define foo (lambda x x))
+(foo)
