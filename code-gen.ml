@@ -504,10 +504,14 @@ module Code_Gen : CODE_GEN = struct
     let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" !unique_index in
     let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" !unique_index in
     let lambda_body_label = Printf.sprintf "body%d" !unique_index in
+    let params_length_not_zero_label = Printf.sprintf "params_length_not_zero%d" !unique_index in
+    let decided_param_count_label = Printf.sprintf "decided_param_count%d" !unique_index in
     unique_index := !unique_index + 1;
     let opt_lambda_comment = "; ScmLambdaOpt': \n; Params: " ^ String.concat ", " params ^ "\n; Optional Param: " ^ param ^ "\n" in
     let generate_lambda_exec_code = 
       lcode ^ ":\n" ^
+      "push rbp\n" ^
+      "mov rbp , rsp\n" ^
       "mov rbx, " ^ string_of_int (List.length params) ^ " ; Number of params\n" ^
       "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n" ^ 
       "cmp rbx, rcx\n" ^
@@ -521,9 +525,16 @@ module Code_Gen : CODE_GEN = struct
       "sub rcx, rbx ; rcx has the amount of extra args on stack\n" ^
       "mov rdi, rcx ; now rdi has it ^\n" ^
       "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n" ^
+      "mov rdx, " ^ string_of_int (List.length params) ^ "\n" ^
+      "cmp rdx, 0\n" ^
+      "jne " ^ params_length_not_zero_label ^ "\n" ^
+      "mov rdx, 1\n" ^
+      "jmp " ^ decided_param_count_label ^ "\n" ^
+      params_length_not_zero_label ^ ":\n" ^
       "mov rdx, rcx\n" ^
       "sub rdx, " ^ string_of_int (List.length params) ^ "\n" ^
       "add rdx, 1\n" ^
+      decided_param_count_label ^ ":\n" ^
       "mov qword [rbp + 8 * 3], rdx ; updating number of params on stack\n" ^
       "dec rcx\n" ^
       "add rcx, 4 ; rcx has the offset of the last arg\n" ^
@@ -538,6 +549,7 @@ module Code_Gen : CODE_GEN = struct
       "mov rax, rdx ; now rax has it ^\n" ^
       "sub rcx, 8\n" ^
       "dec rdi\n" ^
+      "jmp " ^ create_list_loop_label ^ "\n" ^
       end_create_list_loop_label ^ ":\n" ^
       "pop rcx ; rcx now points to the last argument on stack\n" ^
       "mov qword [rcx], rax ; new list is now in the correct place\n" ^
@@ -565,6 +577,7 @@ module Code_Gen : CODE_GEN = struct
       "sub rbx, 8\n" ^
       "sub rcx, 8\n" ^
       "dec rdi\n" ^
+      "jmp " ^ push_stack_loop_label ^ "\n" ^
       end_push_stack_loop_label ^ ":\n" ^
       "shl rsi, 3 ; push rbp and rsp up\n" ^
       "add rbp, rsi\n" ^
@@ -594,8 +607,6 @@ module Code_Gen : CODE_GEN = struct
       "sub rsp, 8 ; rsp now points 1 block lower\n" ^
       "\n" ^
       lambda_body_label ^ ":\n" ^
-      "push rbp\n" ^
-      "mov rbp , rsp\n" ^
       recursive_generate consts fvars body unique_index (nested_lambda_index + 1) ^
       "leave\n" ^
       "ret\n" ^
