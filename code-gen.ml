@@ -170,7 +170,8 @@ module Code_Gen : CODE_GEN = struct
     | ScmChar x -> 2
     | ScmString x -> 1 + 8 + String.length x
     | ScmSymbol x -> 1 + 8
-    | ScmNumber x -> 1 + 8
+    | ScmNumber(ScmRational(_)) -> 1 + 8 + 8
+    | ScmNumber(ScmReal(_)) -> 1 + 8
     | ScmVector x -> 1 + 8 + (List.length x) * 8
     | ScmPair(car, cdr) -> 1 + 8 + 8
 
@@ -244,8 +245,9 @@ module Code_Gen : CODE_GEN = struct
       let exp_lst = find_all_free_vars exp [] in
       lst @ exp_lst
     | ScmDef'(var, exp) ->
+      let var_lst = find_all_free_vars (ScmVar'(var)) [] in
       let exp_lst = find_all_free_vars exp [] in
-      lst @ exp_lst
+      (lst @ var_lst) @ exp_lst
     | ScmOr'(exprs) ->
       let mapped = List.map (fun x -> find_all_free_vars x []) exprs in
       List.fold_left (fun init next -> init @ next) lst mapped
@@ -274,7 +276,7 @@ module Code_Gen : CODE_GEN = struct
   let rec index_fvars_tbl fvars_tbl index indexed_fvars = 
     match fvars_tbl with
     | [] -> indexed_fvars
-    | hd :: tl -> index_fvars_tbl tl (index + 1) (indexed_fvars @ [(hd, index)])
+    | hd :: tl -> index_fvars_tbl tl (index + 1) (indexed_fvars @ [(hd, 8 * index)])
 
   let rec find_index fvars_tbl fvar =
     match fvars_tbl with
@@ -438,7 +440,6 @@ module Code_Gen : CODE_GEN = struct
     let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" !unique_index in
     let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" !unique_index in
     unique_index := !unique_index + 1;
-    let unique_index_value = !unique_index in
     let simple_lambda_comment = "; ScmLambdaSimple': \n; Params: " ^ String.concat ", " params ^ "\n" in
     let generate_lambda_exec_code = lcode ^ ":\n" ^
                                     "push rbp\n" ^
@@ -448,7 +449,7 @@ module Code_Gen : CODE_GEN = struct
                                     "ret\n" ^
                                     lcont ^ ":\n" in
     let generate_extended_environment_code = 
-      "mov rdx, " ^ string_of_int unique_index_value ^ "\n" ^
+      "mov rdx, " ^ string_of_int (nested_lambda_index + 1) ^ "\n" ^
       "shl rdx, 3 ; number_of_environments * 8 bytes\n" ^
       "MALLOC rdx, rdx\n" ^
       "mov rbx, [rbp + 8 * 2]\n" ^
@@ -458,10 +459,10 @@ module Code_Gen : CODE_GEN = struct
       "mov rsi, 0 ; i=0\n" ^
       "mov rdi, 1 ; j=1\n" ^
       copy_env_loop_label ^ ":\n" ^
-      "cmp rsi, " ^ string_of_int (!unique_index - 1) ^ "\n" ^
+      "cmp rsi, " ^ string_of_int (nested_lambda_index - 1) ^ "\n" ^
       "je " ^ end_copy_env_loop_label ^ "\n" ^
-      "mov rcx, [rbx + 8 * rdi]\n" ^ (**THIS MIGHT FAIL *)
-      "mov qword [rdx + 8 * rsi], rcx\n" ^ (**THIS MIGHT FAIL *)
+      "mov rcx, [rbx + 8 * rdi]\n" ^
+      "mov qword [rdx + 8 * rsi], rcx\n" ^
       "inc rsi\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_env_loop_label ^ "\n" ^
@@ -482,7 +483,7 @@ module Code_Gen : CODE_GEN = struct
       "jmp " ^ copy_params_loop_label ^ "\n" ^
       end_copy_params_loop_label ^ ":\n" in
     let generate_closure_code = 
-      "MAKE_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
+      "MAKE_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^
       "jmp " ^ lcont ^ "\n" in
     simple_lambda_comment ^ generate_extended_environment_code ^ generate_closure_code ^ generate_lambda_exec_code
   
@@ -502,12 +503,13 @@ module Code_Gen : CODE_GEN = struct
     let end_copy_env_loop_label = Printf.sprintf "end_copy_env_loop%d" !unique_index in
     let copy_params_loop_label = Printf.sprintf "copy_params_loop%d" !unique_index in
     let end_copy_params_loop_label = Printf.sprintf "end_copy_params_loop%d" !unique_index in
+    let lambda_body_label = Printf.sprintf "body%d" !unique_index in
     unique_index := !unique_index + 1;
-    let unique_index_value = !unique_index in
     let opt_lambda_comment = "; ScmLambdaOpt': \n; Params: " ^ String.concat ", " params ^ "\n; Optional Param: " ^ param ^ "\n" in
     let generate_lambda_exec_code = 
+      lcode ^ ":\n" ^
       "mov rbx, " ^ string_of_int (List.length params) ^ " ; Number of params\n" ^
-      "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n; " ^ 
+      "mov rcx, [rbp + 8 * 3] ; Number of args on stack\n" ^ 
       "cmp rbx, rcx\n" ^
       "je " ^ add_nil_to_stack_label ^ "\n" ^
       "\n" ^
@@ -567,10 +569,10 @@ module Code_Gen : CODE_GEN = struct
       "shl rsi, 3 ; push rbp and rsp up\n" ^
       "add rbp, rsi\n" ^
       "add rsp, rsi\n" ^
-      "jmp " ^ lcode ^ "\n" ^
+      "jmp " ^ lambda_body_label ^ "\n" ^
       "\n" ^
       add_nil_to_stack_label ^ ":\n" ^
-      "mov rdi, rcx\n ; counter\n" ^
+      "mov rdi, rcx ; counter\n" ^
       "add rdi, 4\n" ^
       "inc rbx\n" ^
       "mov qword [rbp + 8 * 3], rbx ; +1 for nil\n" ^
@@ -585,12 +587,13 @@ module Code_Gen : CODE_GEN = struct
       "add rbx, 8 ; Next block to copy from\n" ^
       "add rcx, 8 ; Next block to copy to\n" ^
       "dec rdi\n"  ^
+      "jmp " ^ add_nil_loop_label ^ "\n" ^
       end_add_nil_loop_label ^ ":\n" ^
       "mov qword [rcx], SOB_NIL_ADDRESS\n" ^
       "sub rbp, 8 ; rbp now points 1 block lower\n" ^
       "sub rsp, 8 ; rsp now points 1 block lower\n" ^
       "\n" ^
-      lcode ^ ":\n" ^
+      lambda_body_label ^ ":\n" ^
       "push rbp\n" ^
       "mov rbp , rsp\n" ^
       recursive_generate consts fvars body unique_index (nested_lambda_index + 1) ^
@@ -598,7 +601,7 @@ module Code_Gen : CODE_GEN = struct
       "ret\n" ^
       lcont ^ ":\n" in
     let generate_extended_environment_code = 
-      "mov rdx, " ^ string_of_int unique_index_value ^ "\n" ^
+      "mov rdx, " ^ string_of_int (nested_lambda_index + 1) ^ "\n" ^
       "shl rdx, 3 ; number_of_environments * 8 bytes\n" ^
       "MALLOC rdx, rdx\n" ^
       "mov rbx, [rbp + 8 * 2]\n" ^
@@ -608,10 +611,10 @@ module Code_Gen : CODE_GEN = struct
       "mov rsi, 0 ; i=0\n" ^
       "mov rdi, 1 ; j=1\n" ^
       copy_env_loop_label ^ ":\n" ^
-      "cmp rsi, " ^ string_of_int (!unique_index - 1) ^ "\n" ^
+      "cmp rsi, " ^ string_of_int (nested_lambda_index - 1) ^ "\n" ^
       "je " ^ end_copy_env_loop_label ^ "\n" ^
-      "mov rcx, [rbx + 8 * rdi]\n" ^ (**THIS MIGHT FAIL *)
-      "mov qword [rdx + 8 * rsi], rcx\n" ^ (**THIS MIGHT FAIL *)
+      "mov rcx, [rbx + 8 * rdi]\n" ^
+      "mov qword [rdx + 8 * rsi], rcx\n" ^
       "inc rsi\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_env_loop_label ^ "\n" ^
@@ -632,7 +635,7 @@ module Code_Gen : CODE_GEN = struct
       "jmp " ^ copy_params_loop_label ^ "\n" ^
       end_copy_params_loop_label ^ ":\n" in
     let generate_closure_code = 
-      "MAKE_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^ (** SOMETHING MIGHT BE WRONG HERE WITH rdx *)
+      "MAKE_CLOSURE(rax, rdx, " ^ lcode ^ ")\n" ^
       "jmp " ^ lcont ^ "\n" in
     opt_lambda_comment ^ generate_extended_environment_code ^ generate_closure_code ^ generate_lambda_exec_code
 
@@ -644,10 +647,14 @@ module Code_Gen : CODE_GEN = struct
     let generated_proc = recursive_generate consts fvars proc unique_index nested_lambda_index in
     let generated_reversed_args = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) reversed_args in
     let args_code = String.concat "push rax\n" generated_reversed_args in
+    let args_code_complete = if ((List.length generated_reversed_args) == 0)
+                               then
+                                 args_code ^ "\n"
+                               else
+                                 args_code ^ "\n" ^ "push rax\n" in
     let code =
       applic_comment ^
-      args_code ^ "\n" ^
-      "push rax\n" ^
+      args_code_complete ^
       "push " ^ string_of_int (List.length args) ^ "\n" ^
       generated_proc ^
       "cmp byte [rax], T_CLOSURE\n" ^
@@ -657,8 +664,8 @@ module Code_Gen : CODE_GEN = struct
       is_closure_label ^ ":\n" ^
       "CLOSURE_ENV rbx, rax\n" ^
       "push rbx\n" ^
-      "CLOSURE_CODE rbx, rax\n" ^
-      "call rbx\n" ^
+      "CLOSURE_CODE rdx, rax\n" ^
+      "call rdx\n" ^
       "add rsp , 8*1 ; pop env\n" ^
       "pop rbx ; pop arg count\n" ^
       "lea rsp , [rsp + 8 * rbx]\n" in
@@ -674,10 +681,14 @@ module Code_Gen : CODE_GEN = struct
     let generated_proc = recursive_generate consts fvars proc unique_index nested_lambda_index in
     let generated_reversed_args = List.map (fun x -> recursive_generate consts fvars x unique_index nested_lambda_index) reversed_args in
     let args_code = String.concat "push rax\n" generated_reversed_args in
+    let args_code_complete = if ((List.length generated_reversed_args) == 0)
+                               then
+                                 args_code ^ "\n"
+                               else
+                                 args_code ^ "\n" ^ "push rax\n" in
     let code =
       applicTP_comment ^
-      args_code ^ "\n" ^
-      "push rax\n" ^
+      args_code_complete ^
       "push " ^ string_of_int (List.length args) ^ "\n" ^
       generated_proc ^
       "cmp byte [rax], T_CLOSURE\n" ^
@@ -697,18 +708,17 @@ module Code_Gen : CODE_GEN = struct
       "mov rsi, 8 * 1 ; i counter\n" ^
       "mov rbx, rbp\n" ^
       "sub rbx, rsi ; copy from\n" ^
-      "mov rcx, 4 ; I don't use magic so this is 4 and not 5\n" ^
+      "mov rcx, 3 ; I don't use magic so this is 3 and not 4\n" ^
       "add rcx, qword [rbp + 8 * 3]\n" ^
-      "sub rcx, rsi\n" ^
       "shl rcx, 3\n" ^
       "add rcx, rbp ; copy to\n" ^
       copy_stack_loop_label ^ ":\n" ^
-      "cmp rsi, " ^ string_of_int (4 + (List.length args)) ^ "\n" ^
+      "cmp rsi, " ^ string_of_int ((5 + (List.length args)) * 8) ^ "\n" ^
       "je " ^ end_copy_stack_loop_label ^ "\n" ^
       "mov rdx, qword [rbx]\n" ^
       "mov qword [rcx], rdx\n" ^
       "sub rbx, 8\n" ^
-      "add rcx, 8\n" ^
+      "sub rcx, 8\n" ^
       "add rsi, 8\n" ^
       "jmp " ^ copy_stack_loop_label ^ "\n" ^
       end_copy_stack_loop_label ^ ":\n" ^

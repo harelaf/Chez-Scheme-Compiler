@@ -190,16 +190,16 @@
 	MAKE_WORDS_LIT T_RATIONAL, num, den
 
 %define MAKE_LITERAL_FLOAT(val) \
-	MAKE_WORDS_LIT T_FLOAT, val
+	MAKE_LITERAL T_FLOAT, dq val
 	
 %define MAKE_PAIR(r, car, cdr) \
-        MAKE_TWO_WORDS r, T_PAIR, car, cdr
+    MAKE_TWO_WORDS r, T_PAIR, car, cdr
 
 %define MAKE_LITERAL_PAIR(car, cdr) \
-        MAKE_WORDS_LIT T_PAIR, car, cdr
+    MAKE_WORDS_LIT T_PAIR, car, cdr
 
 %define MAKE_CLOSURE(r, env, body) \
-        MAKE_TWO_WORDS r, T_CLOSURE, env, body
+    MAKE_TWO_WORDS r, T_CLOSURE, env, body
 
 	
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
