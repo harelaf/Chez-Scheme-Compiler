@@ -187,7 +187,7 @@ module Code_Gen : CODE_GEN = struct
   
   let create_const_offset_assembly_tbl const offset populated_already =
     match const with
-    | ScmChar x -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_CHAR(\"%c\")" x))]
+    | ScmChar x -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_CHAR(%d)" (Char.code x)))]
     | ScmString str -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_STRING \"%s\"" str))]
     | ScmSymbol str -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_SYMBOL(const_tbl+%d)" (find_offset (ScmString(str)) populated_already)))]
     | ScmNumber(ScmRational(numerator, denominator)) -> [(const, (offset, Printf.sprintf "MAKE_LITERAL_RATIONAL(%d,%d)" numerator denominator))]

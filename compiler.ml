@@ -35,6 +35,7 @@ let make_prologue consts_tbl fvars_tbl =
     (* Additional rational numebr ops *)
     "numerator", "numerator"; "denominator", "denominator"; "gcd", "gcd";
     (* you can add yours here *)
+    "apply", "apply"; "car", "car"; "cdr", "cdr"; "cons", "cons"; "set-car!", "set_car"; "set-cdr!", "set_cdr"
   ] in
   let make_primitive_closure (prim, label) =
     (* This implementation assumes fvars are addressed by an offset from the label `fvar_tbl`.
@@ -131,7 +132,7 @@ try
   let infile = Sys.argv.(1) in  
 
   (* load the input file and stdlib *)
-  let code =  (*(file_to_string "stdlib.scm")^ *) (file_to_string infile) in
+  let code = (*(file_to_string "stdlib.scm") ^*) (file_to_string infile) in
 
   (* generate asts for all the code *)
   let asts = string_to_asts code in
