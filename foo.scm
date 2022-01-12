@@ -1,1 +1,2 @@
-(or #t 1 2 'a)
+(define foo (lambda (x) (lambda (y) x)))
+((foo 1) 2)

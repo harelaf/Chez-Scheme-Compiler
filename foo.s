@@ -10,7 +10,7 @@ malloc_pointer:
 ;;; here we REServe enough Quad-words (64-bit "cells") for the free variables
 ;;; each free variable has 8 bytes reserved for a 64-bit pointer to its value
 fvar_tbl:
-    resq 50
+    resq 51
 
 section .data
 const_tbl:
@@ -20,8 +20,6 @@ db T_BOOL, 0
 db T_BOOL, 1
 MAKE_LITERAL_RATIONAL(1,1)
 MAKE_LITERAL_RATIONAL(2,1)
-MAKE_LITERAL_STRING "a"
-MAKE_LITERAL_SYMBOL(const_tbl+40)
 
 ;;; These macro definitions are required for the primitive
 ;;; definitions in the epilogue to work properly
@@ -106,27 +104,158 @@ MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, denominator)
 mov [fvar_tbl+144], rax
 MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, gcd)
 mov [fvar_tbl+200], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, apply)
+mov [fvar_tbl+80], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, car)
+mov [fvar_tbl+96], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, cdr)
+mov [fvar_tbl+104], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, cons)
+mov [fvar_tbl+128], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, set_car)
+mov [fvar_tbl+320], rax
+MAKE_CLOSURE(rax, SOB_NIL_ADDRESS, set_cdr)
+mov [fvar_tbl+328], rax
 
 user_code_fragment:
 ;;; The code you compiled will be added here.
 ;;; It will be executed immediately after the closures for 
 ;;; the primitive procedures are set up.
-; ScmOr': 
-; ScmConst':
-mov rax, const_tbl + 4
-cmp rax, SOB_FALSE_ADDRESS
-jne Lexit0
-; ScmConst':
-mov rax, const_tbl + 6
-cmp rax, SOB_FALSE_ADDRESS
-jne Lexit0
+; ScmDef':
+; VarFree: foo
+; ScmLambdaSimple': 
+; Params: x
+mov rdx, 1
+shl rdx, 3 ; number_of_environments * 8 bytes
+MALLOC rdx, rdx
+mov rbx, [rbp + 8 * 2]
+cmp rbx, SOB_NIL_ADDRESS
+je add_zero_rib_params0
+
+mov rsi, 0 ; i=0
+mov rdi, 1 ; j=1
+copy_env_loop0:
+cmp rsi, -1
+je end_copy_env_loop0
+mov rcx, [rbx + 8 * rdi]
+mov qword [rdx + 8 * rsi], rcx
+inc rsi
+inc rdi
+jmp copy_env_loop0
+end_copy_env_loop0:
+
+add_zero_rib_params0:
+mov rcx, [rbp + 8 * 3]
+shl rcx, 3 ; number of params * 8 bytes
+MALLOC rcx, rcx
+mov qword [rdx + 8 * 0], rcx
+mov rdi, 0 ; i=0
+copy_params_loop0:
+cmp rdi, [rbp + 8 * 3]
+je end_copy_params_loop0
+mov rbx, [rbp + 8 * (4 + rdi)]
+mov qword [rcx + 8 * rdi], rbx
+inc rdi
+jmp copy_params_loop0
+end_copy_params_loop0:
+MAKE_CLOSURE(rax, rdx, Lcode0)
+jmp Lcont0
+Lcode0:
+push rbp
+mov rbp , rsp
+; ScmLambdaSimple': 
+; Params: y
+mov rdx, 2
+shl rdx, 3 ; number_of_environments * 8 bytes
+MALLOC rdx, rdx
+mov rbx, [rbp + 8 * 2]
+cmp rbx, SOB_NIL_ADDRESS
+je add_zero_rib_params1
+
+mov rsi, 0 ; i=0
+mov rdi, 1 ; j=1
+copy_env_loop1:
+cmp rsi, 0
+je end_copy_env_loop1
+mov rcx, [rbx + 8 * rdi]
+mov qword [rdx + 8 * rsi], rcx
+inc rsi
+inc rdi
+jmp copy_env_loop1
+end_copy_env_loop1:
+
+add_zero_rib_params1:
+mov rcx, [rbp + 8 * 3]
+shl rcx, 3 ; number of params * 8 bytes
+MALLOC rcx, rcx
+mov qword [rdx + 8 * 0], rcx
+mov rdi, 0 ; i=0
+copy_params_loop1:
+cmp rdi, [rbp + 8 * 3]
+je end_copy_params_loop1
+mov rbx, [rbp + 8 * (4 + rdi)]
+mov qword [rcx + 8 * rdi], rbx
+inc rdi
+jmp copy_params_loop1
+end_copy_params_loop1:
+MAKE_CLOSURE(rax, rdx, Lcode1)
+jmp Lcont1
+Lcode1:
+push rbp
+mov rbp , rsp
+; ScmVar'(VarBound): x
+mov rax, qword [rbp + 8 * 2]
+mov rax, qword [rax + 8 * 0]
+mov rax, qword [rax + 8 * 0]
+leave
+ret
+Lcont1:
+leave
+ret
+Lcont0:
+mov qword [fvar_tbl + 400], rax
+mov rax, SOB_VOID_ADDRESS
+
+	call write_sob_if_not_void
+
+; ScmApplic': 
 ; ScmConst':
 mov rax, const_tbl + 23
-cmp rax, SOB_FALSE_ADDRESS
-jne Lexit0
+
+push rax
+push 1
+; ScmApplic': 
 ; ScmConst':
-mov rax, const_tbl + 50
-Lexit0:
+mov rax, const_tbl + 6
+
+push rax
+push 1
+; ScmVar'(VarFree): foo
+mov rax, qword [fvar_tbl + 400]
+cmp byte [rax], T_CLOSURE
+je is_closure3
+mov bl, 0
+div bl ; divide by zero because rax is not a closure
+is_closure3:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rdx, rax
+call rdx
+add rsp , 8*1 ; pop env
+pop rbx ; pop arg count
+lea rsp , [rsp + 8 * rbx]
+cmp byte [rax], T_CLOSURE
+je is_closure2
+mov bl, 0
+div bl ; divide by zero because rax is not a closure
+is_closure2:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rdx, rax
+call rdx
+add rsp , 8*1 ; pop env
+pop rbx ; pop arg count
+lea rsp , [rsp + 8 * rbx]
 
 	call write_sob_if_not_void;;; Clean up the dummy frame, set the exit status to 0 ("success"), 
    ;;; and return from main
@@ -717,5 +846,107 @@ set_cdr:
 	mov rdi, PVAR(1)
 	mov qword [rsi + 8 * 2], rdi
 mov rax, SOB_VOID_ADDRESS
+         pop rbp
+         ret
+
+apply:
+       push rbp
+       mov rbp, rsp 
+       ; This code is basically the applicTP code
+mov rbx, [rbp + 8 * 3] ; number of args on stack
+add rbx, 3 ; rbx has the offset of the last argument
+shl rbx, 3
+add rbx, rsp ; this should point to the list at the end
+mov rsi, 0 ; counter of how many args are pushed
+cmp qword [rbx], SOB_NIL_ADDRESS
+je end_reverse_stack_loop
+mov rdx, qword [rbx]
+push_the_list_loop:
+CAR rax, rdx
+push rax ; push car to reverse later
+inc rsi
+CDR rbx, rdx ; now rbx has the cdr of the list
+mov rdx, rbx
+cmp qword rbx, SOB_NIL_ADDRESS
+jne push_the_list_loop
+end_push_the_list_loop:
+mov rbx, rbp
+sub rbx, 8 * 1 ; copy from
+mov rcx, rbp
+shl rsi, 3
+sub rcx, rsi ; copy to
+shr rsi, 3
+reverse_stack_loop:
+cmp rbx, rcx
+jle end_reverse_stack_loop
+mov rdx, qword [rbx]
+mov rax, qword [rcx]
+mov qword [rcx], rdx
+mov qword [rbx], rax
+sub rbx, 8 * 1
+add rcx, 8 * 1
+jmp reverse_stack_loop
+end_reverse_stack_loop:
+mov rdi, [rbp + 8 * 3] ; number of args on stack
+sub rdi, 2 ; 1 for list, 1 for proc
+cmp rdi, 0
+je end_push_stack_args_loop ; no other args to push
+add rsi, rdi ; now rsi has all elements on stack
+mov rbx, 4
+add rbx, rdi
+shl rbx, 3
+add rbx, rbp ; this should point to the last arg (one before the list)
+push_stack_args_loop:
+cmp rdi, 0
+je end_push_stack_args_loop
+mov rax, qword [rbx]
+push rax
+sub rbx, 8 * 1
+dec rdi
+jmp push_stack_args_loop
+end_push_stack_args_loop:
+; now all args should be on the stack
+push rsi ; number of args
+mov r8, rsi ; have to use general purpose register to hold number of args
+mov rax, qword [rbp + 8 * 4]
+cmp byte [rax], T_CLOSURE
+je is_closure
+mov bl, 0
+div bl ; divide by zero because rax is not a closure
+is_closure:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rbx, rax
+mov rax, rbx
+push qword [rbp + 8 * 1] ; old ret addr, like practical session 12
+push qword [rbp + 8 * 0] ; old rbp, like practical session 12
+mov rdi, [rbp + 8 * 3] ; number of arguments on stack
+add rdi, 4
+shl rdi, 3 ; offset rsp later
+mov rsi, 8 * 1 ; i counter
+mov rbx, rbp
+sub rbx, rsi ; copy from
+mov rcx, 3 ; I don't use magic so this is 3 and not 4
+add rcx, qword [rbp + 8 * 3]
+shl rcx, 3
+add rcx, rbp ; copy to
+apply_copy_stack_loop:
+shl r8, 3
+add r8, 8 * 5
+cmp rsi, r8
+je end_apply_copy_stack_loop
+sub r8, 8 * 5
+shr r8, 3
+mov rdx, qword [rbx]
+mov qword [rcx], rdx
+sub rbx, 8
+sub rcx, 8
+add rsi, 8
+jmp apply_copy_stack_loop
+end_apply_copy_stack_loop:
+add rsp, rdi
+pop rbp
+jmp rax
+
          pop rbp
          ret
