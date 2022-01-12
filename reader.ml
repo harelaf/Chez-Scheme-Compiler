@@ -216,6 +216,7 @@ and make_named_char char_name ch =
   nt
 and nt_char_named str =
   disj_list [(make_named_char "newline" '\n');
+              (make_named_char "nul" '\000');
                (make_named_char "page" '\012');
                (make_named_char "return" '\r');
                (make_named_char "space" ' ');
