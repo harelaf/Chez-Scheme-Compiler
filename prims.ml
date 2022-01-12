@@ -369,9 +369,108 @@ module Prims : PRIMS = struct
                "mov rax, SOB_VOID_ADDRESS" in
     (make_binary "set_cdr" body)
 
+  let apply = 
+    let label = "apply" in
+    let body = 
+      "; This code is basically the applicTP code\n" ^
+      "mov rbx, [rbp + 8 * 3] ; number of args on stack\n" ^
+      "add rbx, 3 ; rbx has the offset of the last argument\n" ^
+      "shl rbx, 3\n" ^
+      "add rbx, rsp ; this should point to the list at the end\n" ^
+      "mov rsi, 0 ; counter of how many args are pushed\n" ^
+      "cmp qword [rbx], SOB_NIL_ADDRESS\n" ^
+      "je end_reverse_stack_loop\n" ^
+      "mov rdx, qword [rbx]\n" ^
+      "push_the_list_loop:\n" ^
+      "CAR rax, rdx\n" ^
+      "push rax ; push car to reverse later\n" ^
+      "inc rsi\n" ^
+      "CDR rbx, rdx ; now rbx has the cdr of the list\n" ^
+      "mov rdx, rbx\n" ^
+      "cmp qword rbx, SOB_NIL_ADDRESS\n" ^
+      "jne push_the_list_loop\n" ^
+      "end_push_the_list_loop:\n" ^
+      "mov rbx, rbp\n" ^
+      "sub rbx, 8 * 1 ; copy from\n" ^
+      "mov rcx, rbp\n" ^
+      "shl rsi, 3\n" ^
+      "sub rcx, rsi ; copy to\n" ^
+      "shr rsi, 3\n" ^
+      "reverse_stack_loop:\n" ^
+      "cmp rbx, rcx\n" ^
+      "jle end_reverse_stack_loop\n" ^
+      "mov rdx, qword [rbx]\n" ^
+      "mov rax, qword [rcx]\n" ^
+      "mov qword [rcx], rdx\n" ^
+      "mov qword [rbx], rax\n" ^
+      "sub rbx, 8 * 1\n" ^
+      "add rcx, 8 * 1\n" ^
+      "jmp reverse_stack_loop\n" ^
+      "end_reverse_stack_loop:\n" ^
+      "mov rdi, [rbp + 8 * 3] ; number of args on stack\n" ^
+      "sub rdi, 2 ; 1 for list, 1 for proc\n" ^
+      "cmp rdi, 0\n" ^
+      "je end_push_stack_args_loop ; no other args to push\n" ^
+      "add rsi, rdi ; now rsi has all elements on stack\n" ^
+      "mov rbx, 4\n" ^
+      "add rbx, rdi\n" ^
+      "shl rbx, 3\n" ^
+      "add rbx, rbp ; this should point to the last arg (one before the list)\n" ^
+      "push_stack_args_loop:\n" ^
+      "cmp rdi, 0\n" ^
+      "je end_push_stack_args_loop\n" ^
+      "mov rax, qword [rbx]\n" ^
+      "push rax\n" ^
+      "sub rbx, 8 * 1\n" ^
+      "dec rdi\n" ^
+      "jmp push_stack_args_loop\n" ^
+      "end_push_stack_args_loop:\n" ^
+      "; now all args should be on the stack\n" ^
+      "push rsi ; number of args\n" ^
+      "mov r8, rsi ; have to use general purpose register to hold number of args\n" ^
+      "mov rax, qword [rbp + 8 * 4]\n" ^
+      "cmp byte [rax], T_CLOSURE\n" ^
+      "je is_closure\n" ^
+      "mov bl, 0\n" ^
+      "div bl ; divide by zero because rax is not a closure\n" ^
+      "is_closure:\n" ^
+      "CLOSURE_ENV rbx, rax\n" ^
+      "push rbx\n" ^
+      "CLOSURE_CODE rbx, rax\n" ^
+      "mov rax, rbx\n" ^
+      "push qword [rbp + 8 * 1] ; old ret addr, like practical session 12\n" ^
+      "push qword [rbp + 8 * 0] ; old rbp, like practical session 12\n" ^
+      "mov rdi, [rbp + 8 * 3] ; number of arguments on stack\n" ^
+      "add rdi, 4\n" ^
+      "shl rdi, 3 ; offset rsp later\n" ^
+      "mov rsi, 8 * 1 ; i counter\n" ^
+      "mov rbx, rbp\n" ^
+      "sub rbx, rsi ; copy from\n" ^
+      "mov rcx, 3 ; I don't use magic so this is 3 and not 4\n" ^
+      "add rcx, qword [rbp + 8 * 3]\n" ^
+      "shl rcx, 3\n" ^
+      "add rcx, rbp ; copy to\n" ^
+      "apply_copy_stack_loop:\n" ^
+      "shl r8, 3\n" ^
+      "add r8, 8 * 5\n" ^
+      "cmp rsi, r8\n" ^
+      "je end_apply_copy_stack_loop\n" ^
+      "sub r8, 8 * 5\n" ^
+      "shr r8, 3\n" ^
+      "mov rdx, qword [rbx]\n" ^
+      "mov qword [rcx], rdx\n" ^
+      "sub rbx, 8\n" ^
+      "sub rcx, 8\n" ^
+      "add rsi, 8\n" ^
+      "jmp apply_copy_stack_loop\n" ^
+      "end_apply_copy_stack_loop:\n" ^
+      "add rsp, rdi\n" ^
+      "pop rbp\n" ^
+      "jmp rax\n" in
+    (make_routine label body)
 
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
      string of primitive procedures. *)
-  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; car; cdr; cons; set_car; set_cdr];;
+  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; car; cdr; cons; set_car; set_cdr; apply];;
 end;;
