@@ -188,9 +188,9 @@ match sexpr with
                     else ScmVar(x)
 (* IF STATEMENTS *)
 | ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmPair(dif, ScmNil)))) ->
-    ScmIf(tag_parse_expression test, tag_parse_expression dit, tag_parse_expression dif)
+  ScmIf(tag_parse_expression test, tag_parse_expression dit, tag_parse_expression dif)
 | ScmPair(ScmSymbol("if"), ScmPair(test, ScmPair(dit, ScmNil))) ->
-    ScmIf(tag_parse_expression test, tag_parse_expression dit, ScmConst ScmVoid)
+  ScmIf(tag_parse_expression test, tag_parse_expression dit, ScmConst ScmVoid)
 (* OR EXPRESSIONS *)
 | ScmPair(ScmSymbol("or"), ScmNil) -> ScmConst (ScmBoolean false)
 | ScmPair(ScmSymbol("or"), ScmPair(x, ScmNil)) -> tag_parse_expression x
@@ -274,14 +274,14 @@ match sexpr with
     then
       ScmApplic(tag_parse_expression func, [])
   else
-    raise (X_syntax_error (func, "This is a reserved word"))
+    raise (X_syntax_error ((ScmPair(func, ScmNil)), "This is a reserved word"))
 | ScmPair(func, args) ->
   if not (List.mem (string_of_sexpr func) reserved_word_list)
     then
       let args_list = scm_list_to_list args in
       ScmApplic(tag_parse_expression func, List.map tag_parse_expression args_list)
   else
-    raise (X_syntax_error (func, "This is a reserved word"))
+    raise (X_syntax_error ((ScmPair(func, args)), "This is a reserved word"))
 (* STRUCTURE NOT RECOGNIZED *)
 | _ -> raise (X_syntax_error (sexpr, "Sexpr structure not recognized"))
 
@@ -400,6 +400,18 @@ match sexpr with
   let body_list = scm_list_to_list body in
   macro_expand (ScmPair(ScmSymbol "let", ScmPair(list_to_proper_list whatever_list, list_to_proper_list (set_list @ body_list))))
 (* QUASIQUOTE EXPRESSIONS *)
+(* `Number *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmNumber(x), ScmNil)) ->
+  ScmNumber(x)
+(* `Char *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmChar(x), ScmNil)) ->
+  ScmChar(x)
+(* `Boolean *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmBoolean(x), ScmNil)) ->
+  ScmBoolean(x)
+(* (*`String*)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmString(x), ScmNil)) ->
+  ScmString(x) *)
 (* `Symbol *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmSymbol(x), ScmNil)) ->
   ScmPair(ScmSymbol("quote"), (ScmPair (ScmSymbol(x), ScmNil)))
@@ -435,9 +447,12 @@ match sexpr with
   let exprs_list = list_to_proper_list exprs in 
   let expanded_exprs = macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(exprs_list, ScmNil))) in
   ScmPair(ScmSymbol("list->vector"), ScmPair(expanded_exprs, ScmNil))
-(* `(expr_A, rest) *)
+(* `(expr_A) *)
+| ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, ScmNil),ScmNil)) ->
+  ScmPair(ScmSymbol("cons"), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(expr_A, ScmNil))), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(ScmNil, ScmNil)), ScmNil)))
+(* `(expr_A rest) *)
 | ScmPair(ScmSymbol("quasiquote"), ScmPair(ScmPair(expr_A, rest),ScmNil)) ->
-  ScmPair(ScmSymbol("cons"), ScmPair(ScmPair(ScmSymbol("quote"), ScmPair(expr_A, ScmNil)), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
+  ScmPair(ScmSymbol("cons"), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(expr_A, ScmNil))), ScmPair(macro_expand (ScmPair(ScmSymbol("quasiquote"), ScmPair(rest, ScmNil))), ScmNil)))
 | _ -> sexpr
 end;;
 
