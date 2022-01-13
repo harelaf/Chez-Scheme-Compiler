@@ -409,8 +409,8 @@ module Code_Gen : CODE_GEN = struct
       "; ScmBox':\n" ^
       var_value ^ "\n" ^
       "MAKE_PAIR(rbx, SOB_NIL_ADDRESS, SOB_NIL_ADDRESS)\n" ^
-      "mov qword [rbx + 8 * 1], rax\n" ^
-      "mov rax, SOB_VOID_ADDRESS\n"
+      "mov qword [rbx + 1], rax\n" ^
+      "mov rax, rbx\n"
     | ScmBoxGet'(x) -> 
       "; ScmBoxGet':\n" ^
       recursive_generate consts fvars (ScmVar'(x)) unique_index nested_lambda_index ^
@@ -420,7 +420,7 @@ module Code_Gen : CODE_GEN = struct
       recursive_generate consts fvars expr unique_index nested_lambda_index ^
       "mov rbx, rax\n" ^
       recursive_generate consts fvars (ScmVar'(x)) unique_index nested_lambda_index ^
-      "mov qword [rax + 8 * 1], rbx\n" ^
+      "mov qword [rax + 1], rbx\n" ^
       "mov rax, SOB_VOID_ADDRESS\n"
     | ScmLambdaSimple'(params, body) ->
       generate_lambda_simple_code consts fvars unique_index nested_lambda_index params body
@@ -461,8 +461,8 @@ module Code_Gen : CODE_GEN = struct
       copy_env_loop_label ^ ":\n" ^
       "cmp rsi, " ^ string_of_int (nested_lambda_index - 1) ^ "\n" ^
       "je " ^ end_copy_env_loop_label ^ "\n" ^
-      "mov rcx, [rbx + 8 * rdi]\n" ^
-      "mov qword [rdx + 8 * rsi], rcx\n" ^
+      "mov rcx, [rbx + 8 * rsi]\n" ^
+      "mov qword [rdx + 8 * rdi], rcx\n" ^
       "inc rsi\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_env_loop_label ^ "\n" ^
@@ -532,7 +532,8 @@ module Code_Gen : CODE_GEN = struct
       "jmp " ^ decided_param_count_label ^ "\n" ^
       params_length_not_zero_label ^ ":\n" ^
       "mov rdx, rcx\n" ^
-      "sub rdx, " ^ string_of_int (List.length params) ^ "\n" ^
+      (* "sub rdx, " ^ string_of_int (List.length params) ^ "\n" ^ *)
+      "sub rdx, rdi\n" ^
       "add rdx, 1\n" ^
       decided_param_count_label ^ ":\n" ^
       "mov qword [rbp + 8 * 3], rdx ; updating number of params on stack\n" ^
@@ -624,8 +625,8 @@ module Code_Gen : CODE_GEN = struct
       copy_env_loop_label ^ ":\n" ^
       "cmp rsi, " ^ string_of_int (nested_lambda_index - 1) ^ "\n" ^
       "je " ^ end_copy_env_loop_label ^ "\n" ^
-      "mov rcx, [rbx + 8 * rdi]\n" ^
-      "mov qword [rdx + 8 * rsi], rcx\n" ^
+      "mov rcx, [rbx + 8 * rsi]\n" ^
+      "mov qword [rdx + 8 * rdi], rcx\n" ^
       "inc rsi\n" ^
       "inc rdi\n" ^
       "jmp " ^ copy_env_loop_label ^ "\n" ^
