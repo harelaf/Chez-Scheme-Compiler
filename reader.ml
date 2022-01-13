@@ -209,7 +209,7 @@ and nt_boolean str =
   let nt1 = pack nt1 (fun b -> ScmBoolean b) in
   nt1 str
 and nt_char_simple str = 
-  let nt = followed_by (range ' ' '\127') (disj (unitify (char ' ')) (unitify nt_end_of_line_or_file)) in
+  let nt = followed_by (range ' ' '\127') (disj (unitify (char ' ')) (disj (unitify (char ')')) (disj (unitify (char '(')) (unitify nt_end_of_line_or_file)))) in
   nt str 
 and make_named_char char_name ch = 
   let nt = pack (word_ci char_name) (fun _ -> ch) in
