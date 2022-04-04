@@ -1,1 +1,0 @@
-(char->integer #\1)
