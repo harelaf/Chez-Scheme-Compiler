@@ -2,7 +2,7 @@
 
 ## About The Project
 
-I developed this compiler alone in my 'Compilation Principles" course.
+I developed this compiler alone in my "Compilation Principles" course.
 
 In the first iteration I implemented the Reader that basically parsed the scheme code to the S-expression notation.
 
